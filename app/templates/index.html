@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connect2Sun CRM</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --sun: #f59e0b; --sun-dark: #d97706; --green: #16a34a;
+      --bg: #f8fafc; --card: #ffffff; --border: #e2e8f0;
+      --text: #1e293b; --muted: #64748b; --danger: #dc2626;
+    }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+
+    /* ── Layout ── */
+    nav { background: var(--text); color: #fff; padding: 0 24px; display: flex; align-items: center; gap: 16px; height: 52px; }
+    nav h1 { font-size: 1.25rem; }
+    nav h1 span { color: var(--sun); }
+    nav h1 em { color: var(--green); font-style: normal; }
+    .nav-links { display: flex; gap: 4px; margin-left: auto; }
+    .nav-links button { background: transparent; border: none; color: #cbd5e1; cursor: pointer; padding: 6px 14px; border-radius: 6px; font-size: .9rem; transition: background .15s, color .15s; }
+    .nav-links button.active, .nav-links button:hover { background: var(--sun); color: #fff; }
+
+    main { max-width: 1100px; margin: 28px auto; padding: 0 20px; }
+
+    /* ── Cards & sections ── */
+    .view { display: none; }
+    .view.active { display: block; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin-bottom: 20px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .card-header h2 { font-size: 1.05rem; font-weight: 600; }
+
+    /* ── Buttons ── */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border: none; border-radius: 7px; cursor: pointer; font-size: .875rem; font-weight: 500; transition: opacity .15s; }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: var(--sun); color: #fff; }
+    .btn-green { background: var(--green); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-sm { padding: 4px 10px; font-size: .8rem; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    th { background: var(--bg); padding: 9px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); color: var(--muted); text-transform: uppercase; font-size: .75rem; letter-spacing: .04em; }
+    td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f1f5f9; cursor: pointer; }
+
+    /* ── Badges ── */
+    .badge { padding: 2px 9px; border-radius: 12px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
+    .badge-lead { background: #fef9c3; color: #854d0e; }
+    .badge-contacted { background: #e0f2fe; color: #075985; }
+    .badge-proposal_sent { background: #dbeafe; color: #1e40af; }
+    .badge-negotiation { background: #ede9fe; color: #5b21b6; }
+    .badge-won { background: #dcfce7; color: #166534; }
+    .badge-lost { background: #fee2e2; color: #991b1b; }
+
+    /* ── Forms ── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.full { grid-column: 1 / -1; }
+    label { font-size: .8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    input, select, textarea {
+      border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px;
+      font-size: .9rem; background: #fff; color: var(--text);
+      transition: border-color .15s;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--sun); }
+    textarea { resize: vertical; min-height: 70px; }
+
+    /* ── Modal ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal-overlay.hidden { display: none; }
+    .modal { background: #fff; border-radius: 12px; padding: 28px; width: min(680px, 96vw); max-height: 90vh; overflow-y: auto; }
+    .modal h3 { margin-bottom: 20px; font-size: 1.1rem; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+
+    /* ── Stats ── */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+    .stat-card .value { font-size: 1.8rem; font-weight: 700; color: var(--sun); }
+    .stat-card .label { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Detail panel ── */
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .detail-section h3 { font-size: .85rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 12px; }
+    .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: .875rem; }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-row .key { color: var(--muted); }
+    .timeline { list-style: none; position: relative; padding-left: 20px; }
+    .timeline::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+    .timeline li { position: relative; padding: 10px 0 10px 14px; }
+    .timeline li::before { content: ''; position: absolute; left: -8px; top: 15px; width: 10px; height: 10px; border-radius: 50%; background: var(--sun); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--sun); }
+    .timeline-type { font-size: .75rem; font-weight: 700; text-transform: uppercase; color: var(--sun); }
+    .timeline-date { font-size: .75rem; color: var(--muted); margin-left: 8px; }
+    .timeline-summary { margin-top: 4px; font-size: .875rem; }
+    .timeline-outcome { font-size: .8rem; color: var(--muted); margin-top: 2px; font-style: italic; }
+
+    /* ── Filters ── */
+    .filters { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    .filters input { flex: 1; min-width: 180px; }
+    .filters select { min-width: 140px; }
+
+    /* ── Toast ── */
+    #toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 8px; font-size: .875rem; z-index: 200; transition: opacity .3s; opacity: 0; pointer-events: none; }
+    #toast.show { opacity: 1; }
+
+    @media (max-width: 600px) {
+      .form-grid, .form-grid.cols-3, .detail-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <h1>Connect2<span>Sun</span></h1>
+  <div class="nav-links">
+    <button class="active" onclick="showView('dashboard')">Dashboard</button>
+    <button onclick="showView('clients')">Clientes</button>
+  </div>
+</nav>
+
+<main>
+
+  <!-- Dashboard -->
+  <div id="view-dashboard" class="view active">
+    <div class="stats" id="stats"></div>
+    <div class="card">
+      <div class="card-header"><h2>Clientes Recentes</h2></div>
+      <div class="table-wrap">
+        <table id="recent-table">
+          <thead><tr><th>Nome</th><th>Email</th><th>Origem</th><th>Estado</th><th>Criado</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clients list -->
+  <div id="view-clients" class="view">
+    <div class="card">
+      <div class="card-header">
+        <h2>Clientes</h2>
+        <button class="btn btn-primary" onclick="openClientModal()">+ Novo Cliente</button>
+      </div>
+      <div class="filters">
+        <input type="text" id="search-input" placeholder="Pesquisar nome ou email…" oninput="filterClients()">
+        <select id="status-filter" onchange="filterClients()">
+          <option value="">Todos os estados</option>
+          <option value="lead">Lead</option>
+          <option value="contacted">Contactado</option>
+          <option value="proposal_sent">Proposta Enviada</option>
+          <option value="negotiation">Negociação</option>
+          <option value="won">Ganho</option>
+          <option value="lost">Perdido</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table id="clients-table">
+          <thead><tr><th>Nome</th><th>Email</th><th>Telefone</th><th>Origem</th><th>Estado</th><th>Ações</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Client detail -->
+  <div id="view-detail" class="view">
+    <div style="margin-bottom:14px;">
+      <button class="btn btn-ghost btn-sm" onclick="showView('clients')">← Voltar</button>
+    </div>
+    <div id="detail-content"></div>
+  </div>
+
+</main>
+
+<!-- Client modal -->
+<div id="client-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h3 id="modal-title">Novo Cliente</h3>
+    <form id="client-form">
+      <div class="form-grid">
+        <div class="form-group"><label>Nome *</label><input name="name" required></div>
+        <div class="form-group"><label>Email *</label><input name="email" type="email" required></div>
+        <div class="form-group"><label>Telefone</label><input name="phone"></div>
+        <div class="form-group"><label>NIF</label><input name="nif"></div>
+        <div class="form-group full"><label>Morada</label><input name="address"></div>
+        <div class="form-group"><label>Cidade</label><input name="city"></div>
+        <div class="form-group"><label>Código Postal</label><input name="postal_code"></div>
+        <div class="form-group"><label>Origem</label>
+          <select name="origin">
+            <option value="">—</option>
+            <option>Referência</option><option>Website</option><option>Cold Call</option>
+            <option>Feira</option><option>Redes Sociais</option><option>Outro</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Estado</label>
+          <select name="proposal_status">
+            <option value="lead">Lead</option>
+            <option value="contacted">Contactado</option>
+            <option value="proposal_sent">Proposta Enviada</option>
+            <option value="negotiation">Negociação</option>
+            <option value="won">Ganho</option>
+            <option value="lost">Perdido</option>
+          </select>
+        </div>
+        <div class="form-group full"><label>Notas</label><textarea name="notes"></textarea></div>
+      </div>
+    </form>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('client-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveClient()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Installation modal -->
+<div id="inst-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h3 id="inst-modal-title">Dados Técnicos</h3>
+    <form id="inst-form">
+      <div class="form-grid cols-3">
+        <div class="form-group"><label>Potência (kWp)</label><input name="power_kwp" type="number" step="0.01"></div>
+        <div class="form-group"><label>Nº Módulos</label><input name="num_modules" type="number"></div>
+        <div class="form-group"><label>Modelo Módulo</label><input name="module_model"></div>
+        <div class="form-group"><label>Inversor</label><input name="inverter_model"></div>
+        <div class="form-group"><label>Potência Inversor (kW)</label><input name="inverter_power_kw" type="number" step="0.01"></div>
+        <div class="form-group"><label>Bateria</label><input name="battery_model"></div>
+        <div class="form-group"><label>Capacidade Bateria (kWh)</label><input name="battery_capacity_kwh" type="number" step="0.01"></div>
+        <div class="form-group"><label>Data Instalação</label><input name="installation_date" type="date"></div>
+        <div class="form-group"><label>Tipo Telhado</label>
+          <select name="roof_type"><option value="">—</option><option>Telha</option><option>Plano</option><option>Solo</option></select>
+        </div>
+        <div class="form-group"><label>Orientação</label><input name="orientation" placeholder="Sul, Este-Oeste…"></div>
+        <div class="form-group"><label>Inclinação (°)</label><input name="tilt_degrees" type="number" step="0.1"></div>
+        <div class="form-group"><label>Produção Est. (kWh/ano)</label><input name="estimated_annual_kwh" type="number" step="1"></div>
+        <div class="form-group full"><label>Preço Total (€)</label><input name="total_price" type="number" step="0.01"></div>
+      </div>
+    </form>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('inst-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveInstallation()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Interaction modal -->
+<div id="interaction-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>Nova Interação</h3>
+    <form id="interaction-form">
+      <div class="form-grid">
+        <div class="form-group"><label>Tipo *</label>
+          <select name="interaction_type">
+            <option value="call">Chamada</option><option value="email">Email</option>
+            <option value="visit">Visita</option><option value="whatsapp">WhatsApp</option>
+            <option value="meeting">Reunião</option><option value="other">Outro</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Resultado</label><input name="outcome"></div>
+        <div class="form-group full"><label>Resumo *</label><textarea name="summary" required></textarea></div>
+        <div class="form-group"><label>Próxima Ação</label><input name="next_action"></div>
+        <div class="form-group"><label>Data Próxima Ação</label><input name="next_action_date" type="date"></div>
+      </div>
+    </form>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('interaction-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveInteraction()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '/api';
+let allClients = [];
+let currentClientId = null;
+let editingClientId = null;
+let instExists = false;
+
+// ── Navigation ──────────────────────────────────────────────────────────────
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.querySelectorAll('.nav-links button').forEach(b => b.classList.remove('active'));
+  if (name === 'dashboard') { document.querySelector('.nav-links button').classList.add('active'); loadDashboard(); }
+  if (name === 'clients') { document.querySelectorAll('.nav-links button')[1].classList.add('active'); loadClients(); }
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = isError ? '#dc2626' : '#1e293b';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ── API helpers ──────────────────────────────────────────────────────────────
+async function apiFetch(url, opts = {}) {
+  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || res.statusText);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+function statusBadge(s) {
+  const labels = { lead: 'Lead', contacted: 'Contactado', proposal_sent: 'Proposta Enviada', negotiation: 'Negociação', won: 'Ganho', lost: 'Perdido' };
+  return `<span class="badge badge-${s}">${labels[s] || s}</span>`;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-PT');
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  const clients = await apiFetch(`${API}/clients/`);
+  allClients = clients;
+  const counts = {};
+  clients.forEach(c => counts[c.proposal_status] = (counts[c.proposal_status] || 0) + 1);
+  const statsEl = document.getElementById('stats');
+  statsEl.innerHTML = [
+    ['Total', clients.length],
+    ['Leads', counts.lead || 0],
+    ['Propostas', counts.proposal_sent || 0],
+    ['Ganhos', counts.won || 0],
+    ['Perdidos', counts.lost || 0],
+  ].map(([l, v]) => `<div class="stat-card"><div class="value">${v}</div><div class="label">${l}</div></div>`).join('');
+
+  const tbody = document.querySelector('#recent-table tbody');
+  tbody.innerHTML = clients.slice(0, 8).map(c => `
+    <tr onclick="openDetail(${c.id})">
+      <td>${c.name}</td><td>${c.email}</td>
+      <td>${c.origin || '—'}</td><td>${statusBadge(c.proposal_status)}</td>
+      <td>${fmtDate(c.created_at)}</td>
+    </tr>`).join('');
+}
+
+// ── Clients list ─────────────────────────────────────────────────────────────
+async function loadClients() {
+  allClients = await apiFetch(`${API}/clients/`);
+  renderClientsTable(allClients);
+}
+
+function renderClientsTable(clients) {
+  const tbody = document.querySelector('#clients-table tbody');
+  tbody.innerHTML = clients.map(c => `
+    <tr onclick="openDetail(${c.id})">
+      <td>${c.name}</td><td>${c.email}</td><td>${c.phone || '—'}</td>
+      <td>${c.origin || '—'}</td><td>${statusBadge(c.proposal_status)}</td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" onclick="openClientModal(${c.id})">Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteClient(${c.id})">Apagar</button>
+      </td>
+    </tr>`).join('');
+}
+
+function filterClients() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const st = document.getElementById('status-filter').value;
+  renderClientsTable(allClients.filter(c =>
+    (!q || c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)) &&
+    (!st || c.proposal_status === st)
+  ));
+}
+
+// ── Client modal ─────────────────────────────────────────────────────────────
+function openClientModal(clientId = null) {
+  editingClientId = clientId;
+  const form = document.getElementById('client-form');
+  form.reset();
+  document.getElementById('modal-title').textContent = clientId ? 'Editar Cliente' : 'Novo Cliente';
+  if (clientId) {
+    const c = allClients.find(x => x.id === clientId);
+    if (c) Object.entries(c).forEach(([k, v]) => { const el = form.elements[k]; if (el && v !== null) el.value = v; });
+  }
+  document.getElementById('client-modal').classList.remove('hidden');
+}
+
+async function saveClient() {
+  const form = document.getElementById('client-form');
+  const data = Object.fromEntries(new FormData(form).entries());
+  try {
+    if (editingClientId) {
+      await apiFetch(`${API}/clients/${editingClientId}`, { method: 'PUT', body: JSON.stringify(data) });
+      toast('Cliente atualizado');
+    } else {
+      await apiFetch(`${API}/clients/`, { method: 'POST', body: JSON.stringify(data) });
+      toast('Cliente criado');
+    }
+    closeModal('client-modal');
+    loadClients();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function deleteClient(id) {
+  if (!confirm('Apagar este cliente e todos os seus dados?')) return;
+  try {
+    await apiFetch(`${API}/clients/${id}`, { method: 'DELETE' });
+    toast('Cliente apagado');
+    loadClients();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ── Client detail ─────────────────────────────────────────────────────────────
+async function openDetail(clientId) {
+  currentClientId = clientId;
+  const c = await apiFetch(`${API}/clients/${clientId}`);
+  instExists = !!c.installation;
+  const inst = c.installation;
+
+  const instHtml = inst ? `
+    <div class="detail-row"><span class="key">Potência</span><span>${inst.power_kwp ?? '—'} kWp</span></div>
+    <div class="detail-row"><span class="key">Módulos</span><span>${inst.num_modules ?? '—'} × ${inst.module_model || '—'}</span></div>
+    <div class="detail-row"><span class="key">Inversor</span><span>${inst.inverter_model || '—'} ${inst.inverter_power_kw ? inst.inverter_power_kw+'kW' : ''}</span></div>
+    <div class="detail-row"><span class="key">Bateria</span><span>${inst.battery_model || '—'} ${inst.battery_capacity_kwh ? inst.battery_capacity_kwh+'kWh' : ''}</span></div>
+    <div class="detail-row"><span class="key">Telhado / Orient.</span><span>${inst.roof_type || '—'} / ${inst.orientation || '—'}</span></div>
+    <div class="detail-row"><span class="key">Data Instalação</span><span>${fmtDate(inst.installation_date)}</span></div>
+    <div class="detail-row"><span class="key">Produção Est.</span><span>${inst.estimated_annual_kwh ? Math.round(inst.estimated_annual_kwh)+' kWh/ano' : '—'}</span></div>
+    <div class="detail-row"><span class="key">Preço Total</span><span><strong>${inst.total_price ? inst.total_price.toLocaleString('pt-PT', {style:'currency',currency:'EUR'}) : '—'}</strong></span></div>
+  ` : '<p style="color:var(--muted);font-size:.875rem;">Sem dados técnicos.</p>';
+
+  const interactionsHtml = c.interactions.length ? `
+    <ul class="timeline">${c.interactions.map(i => `
+      <li>
+        <span class="timeline-type">${i.interaction_type}</span>
+        <span class="timeline-date">${fmtDate(i.created_at)}</span>
+        <div class="timeline-summary">${i.summary}</div>
+        ${i.outcome ? `<div class="timeline-outcome">↳ ${i.outcome}</div>` : ''}
+        ${i.next_action ? `<div class="timeline-outcome">Próx: ${i.next_action}${i.next_action_date ? ' – '+fmtDate(i.next_action_date) : ''}</div>` : ''}
+      </li>`).join('')}
+    </ul>` : '<p style="color:var(--muted);font-size:.875rem;">Sem interações registadas.</p>';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2 style="font-size:1.3rem;">${c.name}</h2>
+          <div style="margin-top:4px;">${statusBadge(c.proposal_status)}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="openClientModal(${c.id})">Editar</button>
+          <button class="btn btn-ghost btn-sm" onclick="openInstModal()">
+            ${instExists ? 'Editar Instalação' : '+ Instalação'}
+          </button>
+          <button class="btn btn-green btn-sm" onclick="openInteractionModal()">+ Interação</button>
+          <a class="btn btn-primary btn-sm" href="/api/proposals/client/${c.id}/pdf" target="_blank">PDF Proposta</a>
+        </div>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-section">
+          <h3>Contacto</h3>
+          <div class="detail-row"><span class="key">Email</span><span>${c.email}</span></div>
+          <div class="detail-row"><span class="key">Telefone</span><span>${c.phone || '—'}</span></div>
+          <div class="detail-row"><span class="key">NIF</span><span>${c.nif || '—'}</span></div>
+          <div class="detail-row"><span class="key">Morada</span><span>${c.address || '—'}${c.city ? ', '+c.city : ''}${c.postal_code ? ' '+c.postal_code : ''}</span></div>
+          <div class="detail-row"><span class="key">Origem</span><span>${c.origin || '—'}</span></div>
+          ${c.notes ? `<div class="detail-row"><span class="key">Notas</span><span>${c.notes}</span></div>` : ''}
+        </div>
+        <div class="detail-section">
+          <h3>Instalação</h3>
+          ${instHtml}
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Histórico de Interações</h2></div>
+      ${interactionsHtml}
+    </div>
+  `;
+
+  showView('detail');
+}
+
+// ── Installation modal ────────────────────────────────────────────────────────
+async function openInstModal() {
+  const form = document.getElementById('inst-form');
+  form.reset();
+  document.getElementById('inst-modal-title').textContent = instExists ? 'Editar Dados Técnicos' : 'Adicionar Dados Técnicos';
+  if (instExists) {
+    try {
+      const inst = await apiFetch(`${API}/installations/client/${currentClientId}`);
+      Object.entries(inst).forEach(([k, v]) => { const el = form.elements[k]; if (el && v !== null) el.value = v; });
+    } catch (_) {}
+  }
+  document.getElementById('inst-modal').classList.remove('hidden');
+}
+
+async function saveInstallation() {
+  const form = document.getElementById('inst-form');
+  const raw = Object.fromEntries(new FormData(form).entries());
+  const data = {};
+  Object.entries(raw).forEach(([k, v]) => { if (v !== '') data[k] = isNaN(v) || k === 'installation_date' || k === 'module_model' || k === 'inverter_model' || k === 'battery_model' || k === 'roof_type' || k === 'orientation' ? v : Number(v); });
+  try {
+    const method = instExists ? 'PUT' : 'POST';
+    await apiFetch(`${API}/installations/client/${currentClientId}`, { method, body: JSON.stringify(data) });
+    toast('Instalação guardada');
+    closeModal('inst-modal');
+    openDetail(currentClientId);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ── Interaction modal ─────────────────────────────────────────────────────────
+function openInteractionModal() {
+  document.getElementById('interaction-form').reset();
+  document.getElementById('interaction-modal').classList.remove('hidden');
+}
+
+async function saveInteraction() {
+  const form = document.getElementById('interaction-form');
+  const data = Object.fromEntries(new FormData(form).entries());
+  Object.keys(data).forEach(k => { if (data[k] === '') delete data[k]; });
+  try {
+    await apiFetch(`${API}/interactions/client/${currentClientId}`, { method: 'POST', body: JSON.stringify(data) });
+    toast('Interação registada');
+    closeModal('interaction-modal');
+    openDetail(currentClientId);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); }));
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadDashboard();
+</script>
+</body>
+</html>

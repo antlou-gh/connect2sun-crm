@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Proposta Connect2Sun – {{ client.name }}</title>
+  <style>
+    @page { size: A4; margin: 20mm 15mm; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a1a; font-size: 11pt; }
+    h1 { color: #f59e0b; font-size: 22pt; margin: 0 0 4px; }
+    h2 { color: #f59e0b; font-size: 13pt; border-bottom: 2px solid #f59e0b; padding-bottom: 4px; margin: 24px 0 10px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+    .logo-block h1 span { color: #16a34a; }
+    .meta { text-align: right; font-size: 9pt; color: #555; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { background: #f59e0b; color: #fff; padding: 6px 10px; text-align: left; font-size: 10pt; }
+    td { padding: 6px 10px; border-bottom: 1px solid #e5e7eb; font-size: 10pt; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 9pt; font-weight: bold; }
+    .badge-won { background: #dcfce7; color: #166534; }
+    .badge-lead { background: #fef9c3; color: #854d0e; }
+    .badge-lost { background: #fee2e2; color: #991b1b; }
+    .badge-proposal_sent { background: #dbeafe; color: #1e40af; }
+    .badge-negotiation { background: #ede9fe; color: #5b21b6; }
+    .badge-contacted { background: #e0f2fe; color: #075985; }
+    .total-row td { font-weight: bold; background: #fff7ed; color: #c2410c; font-size: 12pt; }
+    .footer { margin-top: 40px; font-size: 8pt; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 10px; }
+    .section-note { font-style: italic; color: #6b7280; font-size: 9pt; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-block">
+    <h1>Connect2<span>Sun</span></h1>
+    <div style="font-size:9pt;color:#555;">Energia Solar &amp; Eficiência Energética</div>
+  </div>
+  <div class="meta">
+    <strong>Proposta Comercial</strong><br>
+    Data: {{ client.created_at.strftime('%d/%m/%Y') if client.created_at else '—' }}<br>
+    Ref.: PROP-{{ '%04d' % client.id }}<br>
+    Estado:
+    <span class="badge badge-{{ client.proposal_status }}">{{ client.proposal_status.replace('_',' ').title() }}</span>
+  </div>
+</div>
+
+<h2>Dados do Cliente</h2>
+<table>
+  <tr><td><strong>Nome</strong></td><td>{{ client.name }}</td><td><strong>NIF</strong></td><td>{{ client.nif or '—' }}</td></tr>
+  <tr><td><strong>Email</strong></td><td>{{ client.email }}</td><td><strong>Telefone</strong></td><td>{{ client.phone or '—' }}</td></tr>
+  <tr><td><strong>Morada</strong></td><td colspan="3">{{ client.address or '—' }}{% if client.city %}, {{ client.city }}{% endif %}{% if client.postal_code %} {{ client.postal_code }}{% endif %}</td></tr>
+  <tr><td><strong>Origem</strong></td><td colspan="3">{{ client.origin or '—' }}</td></tr>
+</table>
+
+{% if client.installation %}
+{% set inst = client.installation %}
+<h2>Dados Técnicos da Instalação</h2>
+<table>
+  <tr>
+    <th>Campo</th><th>Valor</th>
+    <th>Campo</th><th>Valor</th>
+  </tr>
+  <tr>
+    <td>Potência Total</td><td><strong>{{ inst.power_kwp }} kWp</strong></td>
+    <td>Nº de Módulos</td><td>{{ inst.num_modules or '—' }}</td>
+  </tr>
+  <tr>
+    <td>Modelo Módulo</td><td>{{ inst.module_model or '—' }}</td>
+    <td>Inversor</td><td>{{ inst.inverter_model or '—' }} {% if inst.inverter_power_kw %}({{ inst.inverter_power_kw }} kW){% endif %}</td>
+  </tr>
+  <tr>
+    <td>Bateria</td><td>{{ inst.battery_model or '—' }} {% if inst.battery_capacity_kwh %}({{ inst.battery_capacity_kwh }} kWh){% endif %}</td>
+    <td>Data Instalação</td><td>{{ inst.installation_date.strftime('%d/%m/%Y') if inst.installation_date else '—' }}</td>
+  </tr>
+  <tr>
+    <td>Tipo de Telhado</td><td>{{ inst.roof_type or '—' }}</td>
+    <td>Orientação / Inclinação</td><td>{{ inst.orientation or '—' }} {% if inst.tilt_degrees %}/ {{ inst.tilt_degrees }}°{% endif %}</td>
+  </tr>
+  <tr>
+    <td>Produção Anual Est.</td><td>{{ inst.estimated_annual_kwh | int if inst.estimated_annual_kwh else '—' }} kWh/ano</td>
+    <td></td><td></td>
+  </tr>
+  <tr class="total-row">
+    <td colspan="2"><strong>Investimento Total</strong></td>
+    <td colspan="2">{% if inst.total_price %}{{ '%.2f' % inst.total_price | float }} €{% else %}A definir{% endif %}</td>
+  </tr>
+</table>
+{% else %}
+<h2>Dados Técnicos</h2>
+<p class="section-note">Dados técnicos ainda não registados.</p>
+{% endif %}
+
+{% if client.notes %}
+<h2>Observações</h2>
+<p>{{ client.notes }}</p>
+{% endif %}
+
+<div class="footer">
+  Connect2Sun · Energia Solar &amp; Eficiência Energética · {{ client.email }}<br>
+  Este documento é confidencial e destinado exclusivamente ao cliente indicado.
+</div>
+
+</body>
+</html>
