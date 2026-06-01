@@ -11,11 +11,8 @@ acessível por computador **e telemóvel**.
 ## 1. Enviar o código para o GitHub
 ```bash
 # cria o repositório no github.com (ex.: connect2sun-crm) e depois:
-git add .
-git commit -m "App pronta para produção (Docker + Render)"
-git branch -M main
 git remote add origin https://github.com/<o-teu-utilizador>/connect2sun-crm.git
-git push -u origin main
+git push -u origin master
 ```
 
 ## 2. Criar a base de dados Postgres grátis (Neon)
@@ -46,7 +43,7 @@ A app está configurada para guardar os dados num **Postgres** — assim ficam
 > **Docker** → Plan **Free** → em **Environment** adiciona `DATABASE_URL` com a
 > string do Neon. O `Dockerfile` trata do resto.
 
-## 3. Abrir no telemóvel
+## 4. Abrir no telemóvel
 Abre o URL `.onrender.com` no browser do telemóvel. A interface já é responsiva.
 Podes "Adicionar ao ecrã principal" para ficar como atalho/app.
 
