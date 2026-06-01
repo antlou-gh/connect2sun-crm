@@ -23,4 +23,6 @@ COPY . .
 EXPOSE 10000
 
 # Render fornece $PORT; usamos shell-form para o expandir.
-CMD gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 run:app
+# 1 worker evita a corrida no db.create_all() do 1º arranque e poupa RAM (free
+# tier = 512 MB); --threads dá concorrência leve sem processos extra.
+CMD gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 run:app
