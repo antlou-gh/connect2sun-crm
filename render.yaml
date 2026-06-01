@@ -1,0 +1,16 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Faz deploy automático ao ligar este repositório no Render (New → Blueprint).
+services:
+  - type: web
+    name: connect2sun-crm
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free                      # subdomínio público .onrender.com + HTTPS grátis
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true         # chave secreta forte gerada pelo Render
+      - key: DATABASE_URL
+        sync: false                 # cola a connection string do Neon no dashboard
+                                    # (ver DEPLOY.md). Dados ficam persistentes.

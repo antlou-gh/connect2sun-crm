@@ -4,10 +4,35 @@ from flask import Blueprint, jsonify, request, make_response
 from .. import db
 from ..models import Client
 
-CSV_FIELDS = ("name", "email", "phone", "address", "city", "postal_code",
-              "nif", "origin", "proposal_status", "notes")
+CSV_FIELDS = ("client_number", "name", "email", "phone", "address", "city",
+              "postal_code", "nif", "origin", "proposal_status", "notes")
+
+# Concelhos suportados; qualquer outro valor é qualificado como "Outro".
+CONCELHOS = ("Cascais", "Sintra")
+
+
+def normalize_concelho(value):
+    if not value:
+        return None
+    value = value.strip()
+    for c in CONCELHOS:
+        if value.lower() == c.lower():
+            return c
+    return "Outro"
+
+
+def next_client_number():
+    """Maior nº de cliente existente + 1 (1 se ainda não houver clientes)."""
+    current = db.session.query(db.func.max(Client.client_number)).scalar()
+    return (current or 0) + 1
+
 
 bp = Blueprint("clients", __name__)
+
+
+@bp.get("/next-number")
+def get_next_number():
+    return jsonify({"next": next_client_number()})
 
 
 @bp.get("/")
@@ -40,12 +65,25 @@ def create_client():
     if Client.query.filter_by(email=body["email"]).first():
         return jsonify({"error": "Email already registered"}), 409
 
+    # Nº de cliente: usa o indicado, senão incrementa a partir do maior existente.
+    raw_number = body.get("client_number")
+    if raw_number in (None, ""):
+        client_number = next_client_number()
+    else:
+        try:
+            client_number = int(raw_number)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Nº de cliente inválido"}), 400
+        if Client.query.filter_by(client_number=client_number).first():
+            return jsonify({"error": f"Nº de cliente {client_number} já existe"}), 409
+
     client = Client(
+        client_number=client_number,
         name=body["name"],
         email=body["email"],
         phone=body.get("phone"),
         address=body.get("address"),
-        city=body.get("city"),
+        city=normalize_concelho(body.get("city")),
         postal_code=body.get("postal_code"),
         nif=body.get("nif"),
         origin=body.get("origin"),
@@ -66,11 +104,23 @@ def update_client(client_id):
         if Client.query.filter_by(email=body["email"]).first():
             return jsonify({"error": "Email already registered"}), 409
 
-    fields = ("name", "email", "phone", "address", "city", "postal_code", "nif",
+    if "client_number" in body and body["client_number"] not in (None, ""):
+        try:
+            new_number = int(body["client_number"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "Nº de cliente inválido"}), 400
+        if new_number != client.client_number and \
+                Client.query.filter_by(client_number=new_number).first():
+            return jsonify({"error": f"Nº de cliente {new_number} já existe"}), 409
+        client.client_number = new_number
+
+    fields = ("name", "email", "phone", "address", "postal_code", "nif",
               "origin", "proposal_status", "notes")
     for field in fields:
         if field in body:
             setattr(client, field, body[field])
+    if "city" in body:
+        client.city = normalize_concelho(body["city"])
 
     db.session.commit()
     return jsonify(client.to_dict())
@@ -122,15 +172,27 @@ def import_csv():
         if existing:
             for field in CSV_FIELDS:
                 val = (row.get(field) or "").strip()
-                if val:
-                    setattr(existing, field, val)
+                if not val:
+                    continue
+                if field == "client_number":
+                    continue  # nunca sobrescrever o nº de um cliente existente
+                if field == "city":
+                    val = normalize_concelho(val)
+                setattr(existing, field, val)
             updated += 1
         else:
-            client = Client(**{
-                f: (row.get(f) or "").strip() or None for f in CSV_FIELDS
-            })
+            data = {f: (row.get(f) or "").strip() or None
+                    for f in CSV_FIELDS if f not in ("client_number", "city")}
+            client = Client(**data)
+            client.city = normalize_concelho(row.get("city"))
             client.proposal_status = client.proposal_status or "lead"
+            num = (row.get("client_number") or "").strip()
+            try:
+                client.client_number = int(num) if num else next_client_number()
+            except ValueError:
+                client.client_number = next_client_number()
             db.session.add(client)
+            db.session.flush()  # garante que next_client_number vê este nº
             created += 1
 
     db.session.commit()

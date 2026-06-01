@@ -31,13 +31,14 @@
 
 <div class="header">
   <div class="logo-block">
+    {% if logo_uri %}<img src="{{ logo_uri }}" alt="Connect2Sun" style="height:54px;width:auto;">{% endif %}
     <h1>Connect2<span>Sun</span></h1>
     <div style="font-size:9pt;color:#555;">Energia Solar &amp; Eficiência Energética</div>
   </div>
   <div class="meta">
     <strong>Proposta Comercial</strong><br>
     Data: {{ client.created_at.strftime('%d/%m/%Y') if client.created_at else '—' }}<br>
-    Ref.: PROP-{{ '%04d' % client.id }}<br>
+    Ref.: PROP-{{ '%04d' % (client.client_number or client.id) }}<br>
     Estado:
     <span class="badge badge-{{ client.proposal_status }}">{{ client.proposal_status.replace('_',' ').title() }}</span>
   </div>
@@ -45,9 +46,10 @@
 
 <h2>Dados do Cliente</h2>
 <table>
+  <tr><td><strong>Nº Cliente</strong></td><td>{{ client.client_number or '—' }}</td><td><strong>Concelho</strong></td><td>{{ client.city or '—' }}</td></tr>
   <tr><td><strong>Nome</strong></td><td>{{ client.name }}</td><td><strong>NIF</strong></td><td>{{ client.nif or '—' }}</td></tr>
   <tr><td><strong>Email</strong></td><td>{{ client.email }}</td><td><strong>Telefone</strong></td><td>{{ client.phone or '—' }}</td></tr>
-  <tr><td><strong>Morada</strong></td><td colspan="3">{{ client.address or '—' }}{% if client.city %}, {{ client.city }}{% endif %}{% if client.postal_code %} {{ client.postal_code }}{% endif %}</td></tr>
+  <tr><td><strong>Morada</strong></td><td colspan="3">{{ client.address or '—' }}{% if client.postal_code %} {{ client.postal_code }}{% endif %}</td></tr>
   <tr><td><strong>Origem</strong></td><td colspan="3">{{ client.origin or '—' }}</td></tr>
 </table>
 
@@ -60,7 +62,7 @@
     <th>Campo</th><th>Valor</th>
   </tr>
   <tr>
-    <td>Potência Total</td><td><strong>{{ inst.power_kwp }} kWp</strong></td>
+    <td>Potência Total</td><td><strong>{{ inst.power_kwp or '—' }} kWp</strong></td>
     <td>Nº de Módulos</td><td>{{ inst.num_modules or '—' }}</td>
   </tr>
   <tr>
@@ -81,7 +83,7 @@
   </tr>
   <tr class="total-row">
     <td colspan="2"><strong>Investimento Total</strong></td>
-    <td colspan="2">{% if inst.total_price %}{{ '%.2f' % inst.total_price | float }} €{% else %}A definir{% endif %}</td>
+    <td colspan="2">{% if inst.total_price %}{{ '%.2f' % inst.total_price }} €{% else %}A definir{% endif %}</td>
   </tr>
 </table>
 {% else %}

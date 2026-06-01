@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+.git/
+.env
+.env.*
+.DS_Store
+# Não enviar a BD local para a imagem — em produção é criada de novo / vem do disco.
+connect2sun.db
