@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -29,3 +30,13 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # pool_pre_ping evita erros de ligação fechada em Postgres serverless (Neon).
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+
+    # ── Autenticação ──────────────────────────────────────────────────────────
+    # Palavra-passe única partilhada. Em produção define APP_PASSWORD no Render;
+    # o valor abaixo é só um default para desenvolvimento local.
+    APP_PASSWORD = os.environ.get("APP_PASSWORD", "connect2sun")
+    # Cookie de sessão: HttpOnly sempre; Secure só em produção (Render usa HTTPS).
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = bool(os.environ.get("RENDER"))
+    PERMANENT_SESSION_LIFETIME = timedelta(days=7)

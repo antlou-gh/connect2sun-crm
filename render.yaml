@@ -14,3 +14,5 @@ services:
       - key: DATABASE_URL
         sync: false                 # cola a connection string do Neon no dashboard
                                     # (ver DEPLOY.md). Dados ficam persistentes.
+      - key: APP_PASSWORD
+        sync: false                 # define a palavra-passe de acesso à app

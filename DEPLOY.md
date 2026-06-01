@@ -58,7 +58,17 @@ Podes "Adicionar ao ecrã principal" para ficar como atalho/app.
 |----------|----------|
 | `SECRET_KEY` | gerada automaticamente pelo `render.yaml` |
 | `DATABASE_URL` | connection string do Neon (Postgres) — obrigatória em produção |
+| `APP_PASSWORD` | palavra-passe de acesso à app (página de login) — define no Render |
 | `PORT` | fornecida pelo Render; o Dockerfile já a usa |
+
+## Autenticação
+A app tem uma página de login (`/login`) protegida por **palavra-passe única**
+partilhada, definida na variável `APP_PASSWORD`. Sem login, todas as páginas
+redirecionam para `/login` e a API responde `401`. Botão **Sair** na barra de
+topo termina a sessão. A sessão dura 7 dias (cookie HttpOnly + Secure em HTTPS).
+
+> Em local, se não definires `APP_PASSWORD`, a password é `connect2sun`.
+> **Em produção define sempre um valor forte** em Render → serviço → Environment.
 
 O `config.py` aceita `postgres://`, `postgresql://` ou
 `postgresql+psycopg://` e normaliza para o driver psycopg3 automaticamente.

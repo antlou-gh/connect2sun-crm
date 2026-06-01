@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entrar · Connect2Sun CRM</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a; color: #e2e8f0;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 14px;
+      padding: 36px 32px; width: min(380px, 100%); text-align: center;
+    }
+    .card img { height: 56px; width: auto; margin-bottom: 18px; }
+    .name { font-size: 1.3rem; font-weight: 700; margin-bottom: 2px; }
+    .name span { color: #f59e0b; }
+    .sub { font-size: .78rem; color: #94a3b8; margin-bottom: 26px; }
+    form { display: flex; flex-direction: column; gap: 14px; }
+    label { font-size: .78rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; text-align: left; }
+    input {
+      width: 100%; border: 1px solid #334155; border-radius: 8px; padding: 11px 12px;
+      font-size: .95rem; background: #0f172a; color: #e2e8f0;
+    }
+    input:focus { outline: none; border-color: #f59e0b; }
+    button {
+      background: #f59e0b; color: #fff; border: none; border-radius: 8px;
+      padding: 11px; font-size: .95rem; font-weight: 600; cursor: pointer; transition: opacity .15s;
+    }
+    button:hover { opacity: .9; }
+    .error { background: #7f1d1d; color: #fecaca; border-radius: 8px; padding: 9px 12px; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="{{ url_for('static', filename='img/c2s-symbol.png') }}" alt="Connect2Sun">
+    <div class="name">Connect2<span>Sun</span></div>
+    <div class="sub">CRM · Gestão de Leads e Propostas</div>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post" action="{{ url_for('auth.login') }}">
+      <div style="text-align:left;display:flex;flex-direction:column;gap:6px;">
+        <label for="password">Palavra-passe</label>
+        <input id="password" name="password" type="password" autofocus required>
+      </div>
+      <button type="submit">Entrar</button>
+    </form>
+  </div>
+</body>
+</html>

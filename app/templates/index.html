@@ -122,6 +122,8 @@
     #toast { position: fixed; bottom: 24px; right: 24px; background: var(--toast-bg); color: #fff; padding: 12px 18px; border-radius: 8px; font-size: .875rem; z-index: 200; transition: opacity .3s; opacity: 0; pointer-events: none; }
     #dark-toggle { background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer; padding: 5px 10px; border-radius: 6px; font-size: .85rem; transition: background .15s; }
     #dark-toggle:hover { background: var(--hover-row); }
+    #logout-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer; padding: 5px 12px; border-radius: 6px; font-size: .85rem; text-decoration: none; transition: background .15s; }
+    #logout-btn:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
     #toast.show { opacity: 1; }
 
     /* ── Charts ── */
@@ -153,6 +155,7 @@
     <button onclick="showView('clients')">Clientes</button>
   </div>
   <button id="dark-toggle" onclick="toggleDark()" title="Alternar tema">☀️</button>
+  <a id="logout-btn" href="/logout" title="Sair">Sair</a>
 </nav>
 
 <main>
@@ -362,6 +365,7 @@ function toast(msg, isError = false) {
 // ── API helpers ──────────────────────────────────────────────────────────────
 async function apiFetch(url, opts = {}) {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (res.status === 401) { window.location = '/login'; throw new Error('Sessão expirada'); }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);
