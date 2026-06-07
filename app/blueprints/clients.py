@@ -181,6 +181,8 @@ def import_csv():
 
     # Debug: incluir os nomes das colunas detectadas na resposta
     detected_fields = list(rows[0].keys()) if rows else []
+    first_row_sample = dict(rows[0]) if rows else {}
+    first_line_raw = text.split("\n")[0][:200]  # primeiros 200 chars da 1a linha
 
     created = updated = skipped = 0
     errors = []
@@ -230,4 +232,4 @@ def import_csv():
             continue
 
     db.session.commit()
-    return jsonify({"created": created, "updated": updated, "skipped": skipped, "errors": errors, "detected_fields": detected_fields})
+    return jsonify({"created": created, "updated": updated, "skipped": skipped, "errors": errors, "detected_fields": detected_fields, "first_line_raw": first_line_raw, "first_row_sample": first_row_sample, "delimiter_used": delimiter})
