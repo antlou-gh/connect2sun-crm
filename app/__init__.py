@@ -25,6 +25,11 @@ def create_app(config_class=Config):
     app.register_blueprint(frontend_bp)
     app.register_blueprint(auth_bp)
 
+    # Health check - manter o servico Render acordado
+    @app.route("/ping")
+    def ping():
+        return "pong", 200
+
     # Exige login em todas as rotas (exceto /login e estáticos).
     app.before_request(require_login)
 
