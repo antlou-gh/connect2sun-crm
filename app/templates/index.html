@@ -26,15 +26,15 @@
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); transition: background .2s, color .2s; }
 
     /* ── Layout ── */
-    nav { background: var(--nav-bg); color: var(--text); padding: 0 24px; display: flex; align-items: center; gap: 14px; height: 64px; border-bottom: 1px solid var(--nav-border); transition: background .2s, border-color .2s; }
+    nav { background: var(--nav-bg); color: var(--text); padding: 0 24px; display: flex; align-items: center; gap: 14px; height: 76px; border-bottom: 1px solid var(--nav-border); transition: background .2s, border-color .2s; }
     .brand { display: flex; align-items: center; gap: 12px; }
-    .brand img { height: 40px; width: auto; display: block; }
+    .brand img { height: 48px; width: auto; display: block; }
     .brand .wordmark { line-height: 1.15; }
-    .brand .wordmark .name { font-size: 1.2rem; font-weight: 700; color: var(--text); }
+    .brand .wordmark .name { font-size: 1.4rem; font-weight: 700; color: var(--text); }
     .brand .wordmark .name span { color: var(--sun); }
-    .brand .wordmark .sub { font-size: .72rem; color: var(--muted); letter-spacing: .01em; margin-top: 1px; }
+    .brand .wordmark .sub { font-size: .95rem; color: var(--muted); letter-spacing: .01em; margin-top: 2px; font-weight: 500; }
     .nav-links { display: flex; gap: 4px; margin-left: auto; }
-    .nav-links button { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 7px 16px; border-radius: 6px; font-size: .9rem; font-weight: 500; transition: background .15s, color .15s; }
+    .nav-links button { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 8px 18px; border-radius: 6px; font-size: 1rem; font-weight: 600; transition: background .15s, color .15s; }
     .nav-links button.active, .nav-links button:hover { background: var(--sun); color: #fff; }
 
     main { max-width: 1600px; margin: 28px auto; padding: 0 28px; }
@@ -123,7 +123,7 @@
     #toast { position: fixed; bottom: 24px; right: 24px; background: var(--toast-bg); color: #fff; padding: 12px 18px; border-radius: 8px; font-size: .875rem; z-index: 200; transition: opacity .3s; opacity: 0; pointer-events: none; }
     #dark-toggle { background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer; padding: 5px 10px; border-radius: 6px; font-size: .85rem; transition: background .15s; }
     #dark-toggle:hover { background: var(--hover-row); }
-    #logout-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer; padding: 5px 12px; border-radius: 6px; font-size: .85rem; text-decoration: none; transition: background .15s; }
+    #logout-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer; padding: 7px 16px; border-radius: 6px; font-size: 1rem; font-weight: 600; text-decoration: none; transition: background .15s; }
     #logout-btn:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
     #toast.show { opacity: 1; }
 
