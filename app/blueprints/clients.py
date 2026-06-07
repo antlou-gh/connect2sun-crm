@@ -155,46 +155,69 @@ def import_csv():
     if not file or not file.filename.endswith(".csv"):
         return jsonify({"error": "Ficheiro CSV obrigatório"}), 400
 
-    text = file.stream.read().decode("utf-8-sig")  # strip BOM if present
-    reader = csv.DictReader(io.StringIO(text))
+    # Tenta UTF-8, depois Latin-1 (ficheiros exportados pelo Excel em PT)
+    raw = file.stream.read()
+    for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+        try:
+            text = raw.decode(enc)
+            break
+        except (UnicodeDecodeError, LookupError):
+            continue
+    else:
+        return jsonify({"error": "Não foi possível ler o ficheiro — codificação desconhecida"}), 400
+
+    try:
+        reader = csv.DictReader(io.StringIO(text))
+        rows = list(reader)  # lê tudo de uma vez para detectar erros de estrutura cedo
+    except Exception as e:
+        return jsonify({"error": f"Erro ao interpretar CSV: {str(e)}"}), 400
 
     created = updated = skipped = 0
     errors = []
 
-    for i, row in enumerate(reader, start=2):
-        name = (row.get("name") or "").strip()
-        email = (row.get("email") or "").strip().lower()
-        if not name or not email:
-            errors.append(f"Linha {i}: name e email são obrigatórios")
-            skipped += 1
-            continue
+    for i, row in enumerate(rows, start=2):
+        try:
+            name = (row.get("name") or "").strip()
+            email = (row.get("email") or "").strip().lower()
+            # Limpar caracteres inválidos do email
+            email = email.replace(">", "").replace("<", "").strip()
+            if not name or not email:
+                errors.append(f"Linha {i}: name e email são obrigatórios")
+                skipped += 1
+                continue
 
-        existing = Client.query.filter_by(email=email).first()
-        if existing:
-            for field in CSV_FIELDS:
-                val = (row.get(field) or "").strip()
-                if not val:
-                    continue
-                if field == "client_number":
-                    continue  # nunca sobrescrever o nº de um cliente existente
-                if field == "city":
-                    val = normalize_concelho(val)
-                setattr(existing, field, val)
-            updated += 1
-        else:
-            data = {f: (row.get(f) or "").strip() or None
-                    for f in CSV_FIELDS if f not in ("client_number", "city")}
-            client = Client(**data)
-            client.city = normalize_concelho(row.get("city"))
-            client.proposal_status = client.proposal_status or "lead"
-            num = (row.get("client_number") or "").strip()
-            try:
-                client.client_number = int(num) if num else next_client_number()
-            except ValueError:
-                client.client_number = next_client_number()
-            db.session.add(client)
-            db.session.flush()  # garante que next_client_number vê este nº
-            created += 1
+            existing = Client.query.filter_by(email=email).first()
+            if existing:
+                for field in CSV_FIELDS:
+                    val = (row.get(field) or "").strip()
+                    if not val:
+                        continue
+                    if field == "client_number":
+                        continue
+                    if field == "city":
+                        val = normalize_concelho(val)
+                    setattr(existing, field, val)
+                updated += 1
+            else:
+                data = {f: (row.get(f) or "").strip() or None
+                        for f in CSV_FIELDS if f not in ("client_number", "city")}
+                data["email"] = email  # usa o email já limpo
+                client = Client(**data)
+                client.city = normalize_concelho(row.get("city"))
+                client.proposal_status = client.proposal_status or "lead"
+                num = (row.get("client_number") or "").strip()
+                try:
+                    client.client_number = int(num) if num else next_client_number()
+                except ValueError:
+                    client.client_number = next_client_number()
+                db.session.add(client)
+                db.session.flush()
+                created += 1
+        except Exception as e:
+            errors.append(f"Linha {i}: erro inesperado — {str(e)}")
+            skipped += 1
+            db.session.rollback()
+            continue
 
     db.session.commit()
     return jsonify({"created": created, "updated": updated, "skipped": skipped, "errors": errors})
