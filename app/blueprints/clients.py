@@ -257,28 +257,33 @@ def seed_clients():
     ]
     created = 0
     skipped = []
-    for d in SEED_DATA:
-        if Client.query.filter_by(email=d["email"]).first():
-            skipped.append(d["email"])
-            continue
-        if Client.query.filter_by(client_number=d["client_number"]).first():
-            skipped.append(d["email"])
-            continue
-        c = Client(
-            client_number=d["client_number"],
-            name=d["name"],
-            email=d["email"],
-            phone=d["phone"] or None,
-            address=d["address"] or None,
-            city=normalize_concelho(d["city"]),
-            locality=d["locality"] or None,
-            postal_code=d["postal_code"] or None,
-            nif=d["nif"] or None,
-            origin=d["origin"] or None,
-            proposal_status=d["proposal_status"] or "lead",
-            notes=d["notes"] or None,
-        )
-        db.session.add(c)
-        created += 1
-    db.session.commit()
-    return jsonify({"created": created, "skipped": skipped})
+    try:
+        for d in SEED_DATA:
+            if Client.query.filter_by(email=d["email"]).first():
+                skipped.append(d["email"])
+                continue
+            if Client.query.filter_by(client_number=d["client_number"]).first():
+                skipped.append(d["email"])
+                continue
+            cl = Client(
+                client_number=d["client_number"],
+                name=d["name"],
+                email=d["email"],
+                phone=d["phone"] or None,
+                address=d["address"] or None,
+                city=normalize_concelho(d["city"]),
+                locality=d["locality"] or None,
+                postal_code=d["postal_code"] or None,
+                nif=d["nif"] or None,
+                origin=d["origin"] or None,
+                proposal_status=d["proposal_status"] or "lead",
+                notes=d["notes"] or None,
+            )
+            db.session.add(cl)
+            created += 1
+        db.session.commit()
+        return jsonify({"created": created, "skipped": skipped})
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
