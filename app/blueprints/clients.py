@@ -238,3 +238,47 @@ def import_csv():
 
     db.session.commit()
     return jsonify({"created": created, "updated": updated, "skipped": skipped, "errors": errors, "detected_fields": detected_fields, "first_line_raw": first_line_raw, "first_row_sample": first_row_sample, "delimiter_used": delimiter})
+
+
+@bp.post("/seed")
+def seed_clients():
+    """Inserir clientes iniciais directamente (sem CSV). Usar apenas uma vez."""
+    SEED_DATA = [
+        {"client_number": 3070, "name": "Ricardo Lopes", "email": "rmfl.mail@gmail.com", "phone": "", "address": "", "city": "Sintra", "locality": "", "postal_code": "", "nif": "", "origin": "Outro", "proposal_status": "proposal_sent", "notes": "Paineis 4 Hyundai 480W e inversor GoodWee 2000W. Morreu completamente sem sinal."},
+        {"client_number": 3071, "name": "Pedro Santos", "email": "apedrosantos@hotmail.com", "phone": "91964678", "address": "R. Jose da Silva Seguro, 177", "city": "Cascais", "locality": "", "postal_code": "2755-343", "nif": "", "origin": "Suncloud", "proposal_status": "proposal_sent", "notes": "Ja tem 5 paineis. Quer aumentar capacidade e instalar bateria. Monofasico."},
+        {"client_number": 3072, "name": "Nuno Santos", "email": "promoman2022@gmail.com", "phone": "969020081", "address": "RUA DOS AFOITOS 37 A mor B", "city": "Sintra", "locality": "", "postal_code": "2705-295", "nif": "", "origin": "Suncloud", "proposal_status": "proposal_sent", "notes": "Trifasico 6.9 kVA com bateria. Telhado plano."},
+        {"client_number": 3073, "name": "Martinus den Blanken", "email": "biscul.mhgdb@gmail.com", "phone": "917310143", "address": "Rua Dr. Mario Amaral, 203", "city": "Cascais", "locality": "", "postal_code": "2775-124", "nif": "", "origin": "Suncloud", "proposal_status": "proposal_sent", "notes": "6 paineis Luxor-250P. Renault ZOE 40kW. Trifasico."},
+        {"client_number": 3074, "name": "Gian Luca Brignone", "email": "deluke01@me.com", "phone": "+393516286826", "address": "Praceta dos Lilazes 48A", "city": "Cascais", "locality": "", "postal_code": "2750-245", "nif": "", "origin": "Referencia", "proposal_status": "lead", "notes": "Bomba de calor trifasica 16kW para radiadores. Tambem planeia paineis."},
+        {"client_number": 3075, "name": "Filipe Almeida", "email": "fma@ivecar.com", "phone": "936637906", "address": "Av. de Portugal, n.166", "city": "Cascais", "locality": "Estoril", "postal_code": "2765-272", "nif": "", "origin": "Outro", "proposal_status": "lead", "notes": "Sistema hibrido 40kWp, bateria LiFePO4 60kWh, inversor trifasico 30kW."},
+        {"client_number": 3076, "name": "Pooya Pazooki", "email": "pooya@pazooki.pt", "phone": "924460706", "address": "Bloommarinha M77 Villa", "city": "Cascais", "locality": "", "postal_code": "2750-001", "nif": "295032162", "origin": "Referencia", "proposal_status": "lead", "notes": ""},
+        {"client_number": 3077, "name": "Antonio Carneiro", "email": "ac814604@gmail.com", "phone": "+352691603271", "address": "Bloom Marinha M35", "city": "Cascais", "locality": "", "postal_code": "2750-001", "nif": "175531021", "origin": "Referencia", "proposal_status": "lead", "notes": ""},
+        {"client_number": 3078, "name": "Lucilia Mata", "email": "ze.goes@netcabo.pt", "phone": "963042521", "address": "Rua Carlos Mardel, 11, RC", "city": "Outro", "locality": "", "postal_code": "2780-097", "nif": "144706717", "origin": "Referencia", "proposal_status": "proposal_sent", "notes": "Instalacao trifasica 6.9 kVA"},
+        {"client_number": 3079, "name": "Filipe Lopes", "email": "FilipeRLopesLda@net.novis.pt", "phone": "918683893", "address": "Rua da Belavista, 65", "city": "Sintra", "locality": "", "postal_code": "", "nif": "", "origin": "Outro", "proposal_status": "lead", "notes": "Tracker 18 paineis German Solar 225Wp. Inversor Power-One Aurora. Trifasico."},
+    ]
+    created = 0
+    skipped = []
+    for d in SEED_DATA:
+        if Client.query.filter_by(email=d["email"]).first():
+            skipped.append(d["email"])
+            continue
+        if Client.query.filter_by(client_number=d["client_number"]).first():
+            skipped.append(d["email"])
+            continue
+        c = Client(
+            client_number=d["client_number"],
+            name=d["name"],
+            email=d["email"],
+            phone=d["phone"] or None,
+            address=d["address"] or None,
+            city=normalize_concelho(d["city"]),
+            locality=d["locality"] or None,
+            postal_code=d["postal_code"] or None,
+            nif=d["nif"] or None,
+            origin=d["origin"] or None,
+            proposal_status=d["proposal_status"] or "lead",
+            notes=d["notes"] or None,
+        )
+        db.session.add(c)
+        created += 1
+    db.session.commit()
+    return jsonify({"created": created, "skipped": skipped})
