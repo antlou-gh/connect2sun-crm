@@ -166,12 +166,19 @@ def import_csv():
     else:
         return jsonify({"error": "Não foi possível ler o ficheiro — codificação desconhecida"}), 400
 
+    # Normalizar line endings (
+ ou  -> 
+) para evitar problemas com StringIO
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+
     # Detectar separador automaticamente (vírgula ou ponto-e-vírgula)
     first_line = text.split("\n")[0] if text else ""
     delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
 
     try:
-        reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+        # Usar splitlines() em vez de StringIO para garantir parsing correcto
+        lines = [l for l in text.splitlines() if l.strip()]
+        reader = csv.DictReader(lines, delimiter=delimiter)
         rows = list(reader)
     except Exception as e:
         return jsonify({"error": f"Erro ao interpretar CSV: {str(e)}"}), 400
