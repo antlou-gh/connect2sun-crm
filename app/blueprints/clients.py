@@ -240,7 +240,7 @@ def import_csv():
     return jsonify({"created": created, "updated": updated, "skipped": skipped, "errors": errors, "detected_fields": detected_fields, "first_line_raw": first_line_raw, "first_row_sample": first_row_sample, "delimiter_used": delimiter})
 
 
-@bp.post("/seed")
+@bp.route("/seed", methods=["GET", "POST"])
 def seed_clients():
     """Inserir clientes iniciais directamente (sem CSV). Usar apenas uma vez."""
     SEED_DATA = [
