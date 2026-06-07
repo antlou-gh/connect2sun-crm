@@ -178,7 +178,7 @@
       <div class="card-header"><h2>Clientes Recentes</h2></div>
       <div class="table-wrap">
         <table id="recent-table">
-          <thead><tr><th>Nº</th><th>Nome</th><th>Email</th><th>Concelho</th><th>Origem</th><th>Estado</th><th>Criado</th></tr></thead>
+          <thead><tr><th>Nº</th><th>Nome</th><th>Email</th><th>Telefone</th><th>Localidade</th><th>Concelho</th><th>Origem</th><th>Estado</th><th>Criado</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -217,7 +217,7 @@
       </div>
       <div class="table-wrap">
         <table id="clients-table">
-          <thead><tr><th>Nº</th><th>Nome</th><th>Email</th><th>Telefone</th><th>Concelho</th><th>Origem</th><th>Estado</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Nº</th><th>Nome</th><th>Email</th><th>Telefone</th><th>Localidade</th><th>Concelho</th><th>Origem</th><th>Estado</th><th>Ações</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -246,6 +246,7 @@
         <div class="form-group"><label>Telefone</label><input name="phone"></div>
         <div class="form-group"><label>NIF</label><input name="nif"></div>
         <div class="form-group full"><label>Morada</label><input name="address"></div>
+        <div class="form-group"><label>Localidade</label><input name="locality" placeholder="ex: Estoril, Parede, Carcavelos…"></div>
         <div class="form-group"><label>Concelho</label>
           <select name="city">
             <option value="">—</option>
@@ -404,6 +405,7 @@ async function loadDashboard() {
   tbody.innerHTML = clients.slice(0, 8).map(c => `
     <tr onclick="openDetail(${c.id})">
       <td>${c.client_number ?? '—'}</td><td>${c.name}</td><td>${c.email}</td>
+      <td>${c.phone || '—'}</td><td>${c.locality || '—'}</td>
       <td>${c.city || '—'}</td>
       <td>${c.origin || '—'}</td><td>${statusBadge(c.proposal_status)}</td>
       <td>${fmtDate(c.created_at)}</td>
@@ -423,7 +425,7 @@ function renderClientsTable(clients) {
   tbody.innerHTML = clients.map(c => `
     <tr onclick="openDetail(${c.id})">
       <td>${c.client_number ?? '—'}</td><td>${c.name}</td><td>${c.email}</td><td>${c.phone || '—'}</td>
-      <td>${c.city || '—'}</td>
+      <td>${c.locality || '—'}</td><td>${c.city || '—'}</td>
       <td>${c.origin || '—'}</td><td>${statusBadge(c.proposal_status)}</td>
       <td onclick="event.stopPropagation()">
         <button class="btn btn-ghost btn-sm" onclick="openClientModal(${c.id})">Editar</button>
@@ -539,6 +541,7 @@ async function openDetail(clientId) {
           <div class="detail-row"><span class="key">Telefone</span><span>${c.phone || '—'}</span></div>
           <div class="detail-row"><span class="key">NIF</span><span>${c.nif || '—'}</span></div>
           <div class="detail-row"><span class="key">Morada</span><span>${c.address || '—'}${c.postal_code ? ' '+c.postal_code : ''}</span></div>
+          <div class="detail-row"><span class="key">Localidade</span><span>${c.locality || '—'}</span></div>
           <div class="detail-row"><span class="key">Concelho</span><span>${c.city || '—'}</span></div>
           <div class="detail-row"><span class="key">Origem</span><span>${c.origin || '—'}</span></div>
           ${c.notes ? `<div class="detail-row"><span class="key">Notas</span><span>${c.notes}</span></div>` : ''}

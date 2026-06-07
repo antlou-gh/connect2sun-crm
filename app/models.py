@@ -12,6 +12,7 @@ class Client(db.Model):
     phone = db.Column(db.String(30))
     address = db.Column(db.String(255))
     city = db.Column(db.String(80))  # concelho: Cascais, Sintra ou Outro
+    locality = db.Column(db.String(120))  # localidade dentro do concelho
     postal_code = db.Column(db.String(20))
     nif = db.Column(db.String(20))
     origin = db.Column(db.String(60))  # referral, website, cold-call, fair, etc.
@@ -42,6 +43,7 @@ class Client(db.Model):
             "phone": self.phone,
             "address": self.address,
             "city": self.city,
+            "locality": self.locality,
             "postal_code": self.postal_code,
             "nif": self.nif,
             "origin": self.origin,

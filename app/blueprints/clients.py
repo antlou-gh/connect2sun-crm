@@ -5,7 +5,7 @@ from .. import db
 from ..models import Client
 
 CSV_FIELDS = ("client_number", "name", "email", "phone", "address", "city",
-              "postal_code", "nif", "origin", "proposal_status", "notes")
+              "locality", "postal_code", "nif", "origin", "proposal_status", "notes")
 
 # Concelhos suportados; qualquer outro valor é qualificado como "Outro".
 CONCELHOS = ("Cascais", "Sintra")
@@ -84,6 +84,7 @@ def create_client():
         phone=body.get("phone"),
         address=body.get("address"),
         city=normalize_concelho(body.get("city")),
+        locality=body.get("locality"),
         postal_code=body.get("postal_code"),
         nif=body.get("nif"),
         origin=body.get("origin"),
@@ -114,7 +115,7 @@ def update_client(client_id):
             return jsonify({"error": f"Nº de cliente {new_number} já existe"}), 409
         client.client_number = new_number
 
-    fields = ("name", "email", "phone", "address", "postal_code", "nif",
+    fields = ("name", "email", "phone", "address", "locality", "postal_code", "nif",
               "origin", "proposal_status", "notes")
     for field in fields:
         if field in body:

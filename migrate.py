@@ -27,6 +27,11 @@ def main():
 
     cols = [r[1] for r in cur.execute("PRAGMA table_info(clients)").fetchall()]
 
+    # 0) coluna locality
+    if "locality" not in cols:
+        cur.execute("ALTER TABLE clients ADD COLUMN locality TEXT")
+        print("+ coluna locality adicionada")
+
     # 1) coluna client_number
     if "client_number" not in cols:
         cur.execute("ALTER TABLE clients ADD COLUMN client_number INTEGER")
