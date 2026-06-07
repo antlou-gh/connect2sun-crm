@@ -35,5 +35,13 @@ def create_app(config_class=Config):
 
     with app.app_context():
         db.create_all()
+        # Migracoes automaticas - adicionar colunas novas sem perder dados
+        try:
+            with db.engine.connect() as conn:
+                from sqlalchemy import text
+                conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS locality VARCHAR(120)"))
+                conn.commit()
+        except Exception:
+            pass  # coluna ja existe ou BD nao suporta IF NOT EXISTS (SQLite)
 
     return app
