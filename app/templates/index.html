@@ -702,7 +702,12 @@ async function importCsv(input) {
     const data = await res.json();
     if (!res.ok) { toast(data.error || 'Erro na importação', true); return; }
     toast(`Importados: ${data.created} novos, ${data.updated} atualizados${data.skipped ? ', '+data.skipped+' ignorados' : ''}`);
-    if (data.errors?.length) console.warn('Import warnings:', data.errors);
+    if (data.errors?.length) {
+      console.warn('Import warnings:', data.errors);
+      console.info('Colunas detectadas:', data.detected_fields);
+      // Mostrar primeiro erro no ecrã para ajudar diagnóstico
+      toast(data.errors[0] + (data.errors.length > 1 ? ` (+${data.errors.length-1} mais)` : ''), true);
+    }
     loadClients();
     loadDashboard();
   } catch (e) { toast(e.message, true); }

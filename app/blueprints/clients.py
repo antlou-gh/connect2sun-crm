@@ -166,11 +166,21 @@ def import_csv():
     else:
         return jsonify({"error": "Não foi possível ler o ficheiro — codificação desconhecida"}), 400
 
+    # Detectar separador automaticamente (vírgula ou ponto-e-vírgula)
+    first_line = text.split("\n")[0] if text else ""
+    delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
+
     try:
-        reader = csv.DictReader(io.StringIO(text))
-        rows = list(reader)  # lê tudo de uma vez para detectar erros de estrutura cedo
+        reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+        rows = list(reader)
     except Exception as e:
         return jsonify({"error": f"Erro ao interpretar CSV: {str(e)}"}), 400
+
+    if not rows:
+        return jsonify({"error": "Ficheiro CSV vazio ou sem dados"}), 400
+
+    # Debug: incluir os nomes das colunas detectadas na resposta
+    detected_fields = list(rows[0].keys()) if rows else []
 
     created = updated = skipped = 0
     errors = []
@@ -220,4 +230,4 @@ def import_csv():
             continue
 
     db.session.commit()
-    return jsonify({"created": created, "updated": updated, "skipped": skipped, "errors": errors})
+    return jsonify({"created": created, "updated": updated, "skipped": skipped, "errors": errors, "detected_fields": detected_fields})
