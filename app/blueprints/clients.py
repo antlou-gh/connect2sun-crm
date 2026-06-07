@@ -166,9 +166,7 @@ def import_csv():
     else:
         return jsonify({"error": "Não foi possível ler o ficheiro — codificação desconhecida"}), 400
 
-    # Normalizar line endings (
- ou  -> 
-) para evitar problemas com StringIO
+    # Normalizar line endings para evitar problemas com StringIO
     text = text.replace("\r\n", "\n").replace("\r", "\n")
 
     # Detectar separador automaticamente (vírgula ou ponto-e-vírgula)
