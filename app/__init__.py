@@ -35,13 +35,23 @@ def create_app(config_class=Config):
 
     with app.app_context():
         db.create_all()
-        # Migracoes automaticas - adicionar colunas novas sem perder dados
-        try:
-            with db.engine.connect() as conn:
-                from sqlalchemy import text
-                conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS locality VARCHAR(120)"))
-                conn.commit()
-        except Exception:
-            pass  # coluna ja existe ou BD nao suporta IF NOT EXISTS (SQLite)
+        # Migracoes automaticas — adicionar colunas novas sem perder dados.
+        # Usa abordagem compatível com SQLite e PostgreSQL.
+        _add_column_if_missing(app, "clients", "locality", "VARCHAR(120)")
 
     return app
+
+
+def _add_column_if_missing(app, table, column, col_type):
+    """Adiciona uma coluna à tabela se ainda não existir (SQLite + PostgreSQL)."""
+    from sqlalchemy import text, inspect
+    with app.app_context():
+        try:
+            insp = inspect(db.engine)
+            existing = [c["name"] for c in insp.get_columns(table)]
+            if column not in existing:
+                with db.engine.connect() as conn:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+                    conn.commit()
+        except Exception:
+            pass  # tabela ainda não existe ou outro erro não crítico
