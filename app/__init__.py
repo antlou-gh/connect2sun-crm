@@ -28,7 +28,8 @@ def create_app(config_class=Config):
     # Health check - manter o servico Render acordado
     @app.route("/ping")
     def ping():
-        return "pong", 200
+        totp_on = bool(app.config.get("TOTP_SECRET"))
+        return f"pong | totp={'ON' if totp_on else 'OFF'}", 200
 
     # Exige login em todas as rotas (exceto /login e estáticos).
     app.before_request(require_login)

@@ -112,7 +112,7 @@ def require_login():
     if session.get("authed"):
         return None
     public = ("auth.login", "auth.login_page", "auth.mfa_page",
-              "auth.mfa_verify", "auth.mfa_setup", "static")
+              "auth.mfa_verify", "auth.mfa_setup", "ping", "static")
     if request.endpoint in public:
         return None
     if request.path.startswith("/api/"):
