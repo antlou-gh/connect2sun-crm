@@ -38,6 +38,7 @@ def create_app(config_class=Config):
         # Migracoes automaticas — adicionar colunas novas sem perder dados.
         # Usa abordagem compatível com SQLite e PostgreSQL.
         _add_column_if_missing(app, "clients", "locality", "VARCHAR(120)")
+        _add_column_if_missing(app, "clients", "proposal_path", "VARCHAR(500)")
 
     return app
 

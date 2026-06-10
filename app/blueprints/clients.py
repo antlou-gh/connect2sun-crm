@@ -1,13 +1,13 @@
 import csv
 import io
-from flask import Blueprint, jsonify, request, make_response
+import os
+from flask import Blueprint, jsonify, request, make_response, current_app, send_from_directory
 from .. import db
 from ..models import Client
 
 CSV_FIELDS = ("client_number", "name", "email", "phone", "address", "city",
               "locality", "postal_code", "nif", "origin", "proposal_status", "notes")
 
-# Concelhos suportados; qualquer outro valor é qualificado como "Outro".
 CONCELHOS = ("Cascais", "Sintra")
 
 
@@ -22,9 +22,14 @@ def normalize_concelho(value):
 
 
 def next_client_number():
-    """Maior nº de cliente existente + 1 (1 se ainda não houver clientes)."""
     current = db.session.query(db.func.max(Client.client_number)).scalar()
     return (current or 0) + 1
+
+
+def proposals_folder():
+    folder = os.path.join(current_app.root_path, "uploads", "proposals")
+    os.makedirs(folder, exist_ok=True)
+    return folder
 
 
 bp = Blueprint("clients", __name__)
@@ -53,7 +58,6 @@ def get_client(client_id):
     data["interactions"] = [i.to_dict() for i in client.interactions]
     return jsonify(data)
 
-
 @bp.post("/")
 def create_client():
     body = request.get_json(silent=True) or {}
@@ -65,7 +69,6 @@ def create_client():
     if Client.query.filter_by(email=body["email"]).first():
         return jsonify({"error": "Email already registered"}), 409
 
-    # Nº de cliente: usa o indicado, senão incrementa a partir do maior existente.
     raw_number = body.get("client_number")
     if raw_number in (None, ""):
         client_number = next_client_number()
@@ -116,7 +119,7 @@ def update_client(client_id):
         client.client_number = new_number
 
     fields = ("name", "email", "phone", "address", "locality", "postal_code", "nif",
-              "origin", "proposal_status", "notes")
+              "origin", "proposal_status", "notes", "proposal_path")
     for field in fields:
         if field in body:
             setattr(client, field, body[field])
@@ -130,10 +133,64 @@ def update_client(client_id):
 @bp.delete("/<int:client_id>")
 def delete_client(client_id):
     client = db.get_or_404(Client, client_id)
+    # Apagar ficheiro de proposta se existir
+    fname = f"client_{client_id}.pdf"
+    fpath = os.path.join(proposals_folder(), fname)
+    if os.path.exists(fpath):
+        os.remove(fpath)
     db.session.delete(client)
     db.session.commit()
     return "", 204
 
+# ── Upload / download de proposta PDF ──────────────────────────────────────────
+
+@bp.post("/<int:client_id>/upload-proposal")
+def upload_proposal(client_id):
+    """Recebe um PDF e guarda-o em uploads/proposals/client_<id>.pdf"""
+    db.get_or_404(Client, client_id)
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "Ficheiro em falta"}), 400
+    if not f.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "Apenas ficheiros PDF são aceites"}), 400
+
+    fname = f"client_{client_id}.pdf"
+    fpath = os.path.join(proposals_folder(), fname)
+    f.save(fpath)
+
+    # Guardar o path relativo no registo do cliente
+    client = db.get_or_404(Client, client_id)
+    client.proposal_path = fname
+    db.session.commit()
+    return jsonify({"ok": True, "filename": fname}), 200
+
+
+@bp.get("/<int:client_id>/proposal-file")
+def get_proposal_file(client_id):
+    """Serve o PDF de proposta guardado para este cliente."""
+    client = db.get_or_404(Client, client_id)
+    if not client.proposal_path:
+        return jsonify({"error": "Sem proposta guardada"}), 404
+    folder = proposals_folder()
+    fpath = os.path.join(folder, client.proposal_path)
+    if not os.path.exists(fpath):
+        return jsonify({"error": "Ficheiro não encontrado"}), 404
+    return send_from_directory(folder, client.proposal_path,
+                               mimetype="application/pdf",
+                               as_attachment=False)
+
+
+@bp.delete("/<int:client_id>/proposal-file")
+def delete_proposal_file(client_id):
+    """Remove o PDF de proposta deste cliente."""
+    client = db.get_or_404(Client, client_id)
+    if client.proposal_path:
+        fpath = os.path.join(proposals_folder(), client.proposal_path)
+        if os.path.exists(fpath):
+            os.remove(fpath)
+        client.proposal_path = None
+        db.session.commit()
+    return "", 204
 
 @bp.get("/export.csv")
 def export_csv():
@@ -155,7 +212,6 @@ def import_csv():
     if not file or not file.filename.endswith(".csv"):
         return jsonify({"error": "Ficheiro CSV obrigatório"}), 400
 
-    # Tenta UTF-8, depois Latin-1 (ficheiros exportados pelo Excel em PT)
     raw = file.stream.read()
     for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
         try:
@@ -166,15 +222,11 @@ def import_csv():
     else:
         return jsonify({"error": "Não foi possível ler o ficheiro — codificação desconhecida"}), 400
 
-    # Normalizar line endings para evitar problemas com StringIO
     text = text.replace("\r\n", "\n").replace("\r", "\n")
-
-    # Detectar separador automaticamente (vírgula ou ponto-e-vírgula)
     first_line = text.split("\n")[0] if text else ""
     delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
 
     try:
-        # Usar splitlines() em vez de StringIO para garantir parsing correcto
         lines = [l for l in text.splitlines() if l.strip()]
         reader = csv.DictReader(lines, delimiter=delimiter)
         rows = list(reader)
@@ -184,11 +236,9 @@ def import_csv():
     if not rows:
         return jsonify({"error": "Ficheiro CSV vazio ou sem dados"}), 400
 
-    # Debug: incluir os nomes das colunas detectadas na resposta
     detected_fields = list(rows[0].keys()) if rows else []
     first_row_sample = dict(rows[0]) if rows else {}
-    first_line_raw = text.split("\n")[0][:200]  # primeiros 200 chars da 1a linha
-
+    first_line_raw = text.split("\n")[0][:200]
     created = updated = skipped = 0
     errors = []
 
@@ -196,7 +246,6 @@ def import_csv():
         try:
             name = (row.get("name") or "").strip()
             email = (row.get("email") or "").strip().lower()
-            # Limpar caracteres inválidos do email
             email = email.replace(">", "").replace("<", "").strip()
             if not name or not email:
                 errors.append(f"Linha {i}: name e email são obrigatórios")
@@ -218,7 +267,7 @@ def import_csv():
             else:
                 data = {f: (row.get(f) or "").strip() or None
                         for f in CSV_FIELDS if f not in ("client_number", "city")}
-                data["email"] = email  # usa o email já limpo
+                data["email"] = email
                 client = Client(**data)
                 client.city = normalize_concelho(row.get("city"))
                 client.proposal_status = client.proposal_status or "lead"
@@ -237,8 +286,10 @@ def import_csv():
             continue
 
     db.session.commit()
-    return jsonify({"created": created, "updated": updated, "skipped": skipped, "errors": errors, "detected_fields": detected_fields, "first_line_raw": first_line_raw, "first_row_sample": first_row_sample, "delimiter_used": delimiter})
-
+    return jsonify({"created": created, "updated": updated, "skipped": skipped,
+                    "errors": errors, "detected_fields": detected_fields,
+                    "first_line_raw": first_line_raw, "first_row_sample": first_row_sample,
+                    "delimiter_used": delimiter})
 
 @bp.route("/seed", methods=["GET", "POST"])
 def seed_clients():

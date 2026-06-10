@@ -538,7 +538,12 @@ async function openDetail(clientId) {
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" onclick="openClientModal(${c.id})">Editar</button>
           <button class="btn btn-green btn-sm" onclick="openInteractionModal()">+ Interação</button>
-          <a class="btn btn-primary btn-sm" href="/api/proposals/client/${c.id}/pdf" target="_blank">PDF Proposta</a>
+          ${c.proposal_path
+            ? `<a class="btn btn-primary btn-sm" href="/api/clients/${c.id}/proposal-file" target="_blank">📄 Ver Proposta</a>
+               <label class="btn btn-ghost btn-sm" style="cursor:pointer;" title="Substituir PDF">↑ <input type="file" accept=".pdf" style="display:none" onchange="uploadProposal(${c.id},this)"></label>
+               <button class="btn btn-danger btn-sm" onclick="deleteProposal(${c.id})" title="Remover proposta">✕</button>`
+            : `<label class="btn btn-primary btn-sm" style="cursor:pointer;">📎 Carregar Proposta <input type="file" accept=".pdf" style="display:none" onchange="uploadProposal(${c.id},this)"></label>`
+          }
         </div>
       </div>
       <div class="detail-grid" style="grid-template-columns:1fr;">
@@ -604,6 +609,30 @@ async function deleteInteraction(id) {
     await apiFetch(`${API}/interactions/${id}`, { method: 'DELETE' });
     toast('Interação apagada');
     openDetail(currentClientId);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ── Proposta PDF ──────────────────────────────────────────────────────────────
+async function uploadProposal(clientId, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  input.value = '';
+  try {
+    const res = await fetch(`${API}/clients/${clientId}/upload-proposal`, { method: 'POST', body: form });
+    if (!res.ok) { const e = await res.json(); toast(e.error || 'Erro no upload', true); return; }
+    toast('Proposta carregada');
+    openDetail(clientId);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function deleteProposal(clientId) {
+  if (!confirm('Remover o PDF de proposta deste cliente?')) return;
+  try {
+    await apiFetch(`${API}/clients/${clientId}/proposal-file`, { method: 'DELETE' });
+    toast('Proposta removida');
+    openDetail(clientId);
   } catch (e) { toast(e.message, true); }
 }
 
