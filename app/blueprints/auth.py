@@ -74,7 +74,7 @@ def mfa_verify():
 @bp.get("/mfa/setup")
 def mfa_setup():
     """Mostra QR code para configurar o autenticador. Requer login."""
-    if not session.get("authed"):
+    if not session.get("authed") and not session.get("pw_verified"):
         return redirect(url_for("auth.login_page"))
 
     totp_secret = current_app.config.get("TOTP_SECRET")
@@ -112,7 +112,7 @@ def require_login():
     if session.get("authed"):
         return None
     public = ("auth.login", "auth.login_page", "auth.mfa_page",
-              "auth.mfa_verify", "static")
+              "auth.mfa_verify", "auth.mfa_setup", "static")
     if request.endpoint in public:
         return None
     if request.path.startswith("/api/"):
