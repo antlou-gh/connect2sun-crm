@@ -35,6 +35,10 @@ class Config:
     # Palavra-passe única partilhada. Em produção define APP_PASSWORD no Render;
     # o valor abaixo é só um default para desenvolvimento local.
     APP_PASSWORD = os.environ.get("APP_PASSWORD", "connect2sun")
+    # MFA/TOTP — gera com: python -c "import pyotp; print(pyotp.random_base32())"
+    # Define TOTP_SECRET nas env vars do Render para ativar o segundo fator.
+    # Se não estiver definido, o login funciona só com password (modo dev).
+    TOTP_SECRET = os.environ.get("TOTP_SECRET") or None
     # Cookie de sessão: HttpOnly sempre; Secure só em produção (Render usa HTTPS).
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"

@@ -217,7 +217,7 @@
       </div>
       <div class="table-wrap">
         <table id="clients-table">
-          <thead><tr><th>Nº</th><th>Nome</th><th>Email</th><th>Telefone</th><th>Localidade</th><th>Concelho</th><th>Origem</th><th>Estado</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Nº</th><th>Nome</th><th>Email</th><th>Telefone</th><th>Localidade</th><th>Concelho</th><th>Origem</th><th>Estado</th><th>Criado</th><th>Ações</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -314,7 +314,7 @@
 <!-- Interaction modal -->
 <div id="interaction-modal" class="modal-overlay hidden">
   <div class="modal">
-    <h3>Nova Interação</h3>
+    <h3 id="interaction-modal-title">Nova Interação</h3>
     <form id="interaction-form">
       <div class="form-grid">
         <div class="form-group"><label>Tipo *</label>
@@ -344,7 +344,7 @@ const API = '/api';
 let allClients = [];
 let currentClientId = null;
 let editingClientId = null;
-let instExists = false;
+let editingInteractionId = null;
 
 // ── Navigation ──────────────────────────────────────────────────────────────
 function showView(name) {
@@ -427,6 +427,7 @@ function renderClientsTable(clients) {
       <td>${c.client_number ?? '—'}</td><td>${c.name}</td><td>${c.email}</td><td>${c.phone || '—'}</td>
       <td>${c.locality || '—'}</td><td>${c.city || '—'}</td>
       <td>${c.origin || '—'}</td><td>${statusBadge(c.proposal_status)}</td>
+      <td>${fmtDate(c.created_at)}</td>
       <td onclick="event.stopPropagation()">
         <button class="btn btn-ghost btn-sm" onclick="openClientModal(${c.id})">Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteClient(${c.id})">Apagar</button>
@@ -489,30 +490,39 @@ async function deleteClient(id) {
   } catch (e) { toast(e.message, true); }
 }
 
+// ── Linkify ───────────────────────────────────────────────────────────────────
+function linkify(text) {
+  if (!text) return '';
+  // Escapa HTML primeiro
+  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Converte URLs (http/https/file) em links clicáveis
+  return escaped.replace(
+    /(https?:\/\/[^\s<]+|file:\/\/[^\s<]+)/g,
+    u => `<a href="${u}" target="_blank" rel="noopener" style="color:var(--sun);word-break:break-all;">${u}</a>`
+  ).replace(/\n/g, '<br>');
+}
+
 // ── Client detail ─────────────────────────────────────────────────────────────
 async function openDetail(clientId) {
   currentClientId = clientId;
   const c = await apiFetch(`${API}/clients/${clientId}`);
-  instExists = !!c.installation;
-  const inst = c.installation;
 
-  const instHtml = inst ? `
-    <div class="detail-row"><span class="key">Potência</span><span>${inst.power_kwp ?? '—'} kWp</span></div>
-    <div class="detail-row"><span class="key">Módulos</span><span>${inst.num_modules ?? '—'} × ${inst.module_model || '—'}</span></div>
-    <div class="detail-row"><span class="key">Inversor</span><span>${inst.inverter_model || '—'} ${inst.inverter_power_kw ? inst.inverter_power_kw+'kW' : ''}</span></div>
-    <div class="detail-row"><span class="key">Bateria</span><span>${inst.battery_model || '—'} ${inst.battery_capacity_kwh ? inst.battery_capacity_kwh+'kWh' : ''}</span></div>
-    <div class="detail-row"><span class="key">Telhado / Orient.</span><span>${inst.roof_type || '—'} / ${inst.orientation || '—'}</span></div>
-    <div class="detail-row"><span class="key">Data Instalação</span><span>${fmtDate(inst.installation_date)}</span></div>
-    <div class="detail-row"><span class="key">Produção Est.</span><span>${inst.estimated_annual_kwh ? Math.round(inst.estimated_annual_kwh)+' kWh/ano' : '—'}</span></div>
-    <div class="detail-row"><span class="key">Preço Total</span><span><strong>${inst.total_price ? inst.total_price.toLocaleString('pt-PT', {style:'currency',currency:'EUR'}) : '—'}</strong></span></div>
-  ` : '<p style="color:var(--muted);font-size:.875rem;">Sem dados técnicos.</p>';
+  const ITYPE_LABELS = { call:'Chamada', email:'Email', visit:'Visita', whatsapp:'WhatsApp', meeting:'Reunião', other:'Outro' };
 
   const interactionsHtml = c.interactions.length ? `
     <ul class="timeline">${c.interactions.map(i => `
       <li>
-        <span class="timeline-type">${i.interaction_type}</span>
-        <span class="timeline-date">${fmtDate(i.created_at)}</span>
-        <div class="timeline-summary">${i.summary}</div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+          <div>
+            <span class="timeline-type">${ITYPE_LABELS[i.interaction_type] || i.interaction_type}</span>
+            <span class="timeline-date">${fmtDate(i.created_at)}</span>
+          </div>
+          <div style="display:flex;gap:4px;flex-shrink:0;">
+            <button class="btn btn-ghost btn-sm" onclick="openInteractionModal(${JSON.stringify(i).replace(/"/g,'&quot;')})">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteInteraction(${i.id})">🗑</button>
+          </div>
+        </div>
+        <div class="timeline-summary">${linkify(i.summary)}</div>
         ${i.outcome ? `<div class="timeline-outcome">↳ ${i.outcome}</div>` : ''}
         ${i.next_action ? `<div class="timeline-outcome">Próx: ${i.next_action}${i.next_action_date ? ' – '+fmtDate(i.next_action_date) : ''}</div>` : ''}
       </li>`).join('')}
@@ -527,14 +537,11 @@ async function openDetail(clientId) {
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" onclick="openClientModal(${c.id})">Editar</button>
-          <button class="btn btn-ghost btn-sm" onclick="openInstModal()">
-            ${instExists ? 'Editar Instalação' : '+ Instalação'}
-          </button>
           <button class="btn btn-green btn-sm" onclick="openInteractionModal()">+ Interação</button>
           <a class="btn btn-primary btn-sm" href="/api/proposals/client/${c.id}/pdf" target="_blank">PDF Proposta</a>
         </div>
       </div>
-      <div class="detail-grid">
+      <div class="detail-grid" style="grid-template-columns:1fr;">
         <div class="detail-section">
           <h3>Contacto</h3>
           <div class="detail-row"><span class="key">Email</span><span>${c.email}</span></div>
@@ -544,11 +551,8 @@ async function openDetail(clientId) {
           <div class="detail-row"><span class="key">Localidade</span><span>${c.locality || '—'}</span></div>
           <div class="detail-row"><span class="key">Concelho</span><span>${c.city || '—'}</span></div>
           <div class="detail-row"><span class="key">Origem</span><span>${c.origin || '—'}</span></div>
-          ${c.notes ? `<div class="detail-row"><span class="key">Notas</span><span>${c.notes}</span></div>` : ''}
-        </div>
-        <div class="detail-section">
-          <h3>Instalação</h3>
-          ${instHtml}
+          <div class="detail-row"><span class="key">Criado em</span><span>${fmtDate(c.created_at)}</span></div>
+          ${c.notes ? `<div class="detail-row"><span class="key">Notas</span><span style="white-space:pre-wrap;line-height:1.5;">${linkify(c.notes)}</span></div>` : ''}
         </div>
       </div>
     </div>
@@ -561,37 +565,19 @@ async function openDetail(clientId) {
   showView('detail');
 }
 
-// ── Installation modal ────────────────────────────────────────────────────────
-async function openInstModal() {
-  const form = document.getElementById('inst-form');
-  form.reset();
-  document.getElementById('inst-modal-title').textContent = instExists ? 'Editar Dados Técnicos' : 'Adicionar Dados Técnicos';
-  if (instExists) {
-    try {
-      const inst = await apiFetch(`${API}/installations/client/${currentClientId}`);
-      Object.entries(inst).forEach(([k, v]) => { const el = form.elements[k]; if (el && v !== null) el.value = v; });
-    } catch (_) {}
-  }
-  document.getElementById('inst-modal').classList.remove('hidden');
-}
-
-async function saveInstallation() {
-  const form = document.getElementById('inst-form');
-  const raw = Object.fromEntries(new FormData(form).entries());
-  const data = {};
-  Object.entries(raw).forEach(([k, v]) => { if (v !== '') data[k] = isNaN(v) || k === 'installation_date' || k === 'module_model' || k === 'inverter_model' || k === 'battery_model' || k === 'roof_type' || k === 'orientation' ? v : Number(v); });
-  try {
-    const method = instExists ? 'PUT' : 'POST';
-    await apiFetch(`${API}/installations/client/${currentClientId}`, { method, body: JSON.stringify(data) });
-    toast('Instalação guardada');
-    closeModal('inst-modal');
-    openDetail(currentClientId);
-  } catch (e) { toast(e.message, true); }
-}
-
 // ── Interaction modal ─────────────────────────────────────────────────────────
-function openInteractionModal() {
-  document.getElementById('interaction-form').reset();
+function openInteractionModal(interaction = null) {
+  editingInteractionId = interaction ? interaction.id : null;
+  const form = document.getElementById('interaction-form');
+  form.reset();
+  document.getElementById('interaction-modal-title').textContent =
+    interaction ? 'Editar Interação' : 'Nova Interação';
+  if (interaction) {
+    Object.entries(interaction).forEach(([k, v]) => {
+      const el = form.elements[k];
+      if (el && v !== null && v !== undefined) el.value = v;
+    });
+  }
   document.getElementById('interaction-modal').classList.remove('hidden');
 }
 
@@ -600,16 +586,44 @@ async function saveInteraction() {
   const data = Object.fromEntries(new FormData(form).entries());
   Object.keys(data).forEach(k => { if (data[k] === '') delete data[k]; });
   try {
-    await apiFetch(`${API}/interactions/client/${currentClientId}`, { method: 'POST', body: JSON.stringify(data) });
-    toast('Interação registada');
+    if (editingInteractionId) {
+      await apiFetch(`${API}/interactions/${editingInteractionId}`, { method: 'PUT', body: JSON.stringify(data) });
+      toast('Interação atualizada');
+    } else {
+      await apiFetch(`${API}/interactions/client/${currentClientId}`, { method: 'POST', body: JSON.stringify(data) });
+      toast('Interação registada');
+    }
     closeModal('interaction-modal');
+    openDetail(currentClientId);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function deleteInteraction(id) {
+  if (!confirm('Apagar esta interação?')) return;
+  try {
+    await apiFetch(`${API}/interactions/${id}`, { method: 'DELETE' });
+    toast('Interação apagada');
     openDetail(currentClientId);
   } catch (e) { toast(e.message, true); }
 }
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); }));
+
+// Fix: só fecha o modal se o clique COMEÇOU no overlay (mousedown).
+// Sem isto, arrastar o rato para fora da janela e soltar fecha o modal.
+(function initModalClose() {
+  let _downOnOverlay = false;
+  document.addEventListener('mousedown', e => {
+    _downOnOverlay = e.target.classList.contains('modal-overlay');
+  });
+  document.addEventListener('click', e => {
+    if (_downOnOverlay && e.target.classList.contains('modal-overlay')) {
+      e.target.classList.add('hidden');
+    }
+    _downOnOverlay = false;
+  });
+})();
 
 // ── Charts ────────────────────────────────────────────────────────────────────
 let chartOrigin = null;

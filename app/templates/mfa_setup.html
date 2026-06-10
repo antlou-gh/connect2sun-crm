@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurar MFA · Connect2Sun CRM</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/c2s-symbol.png') }}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a; color: #e2e8f0;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 14px;
+      padding: 36px 32px; width: min(440px, 100%); text-align: center;
+    }
+    .card img.logo { height: 56px; width: auto; margin-bottom: 18px; }
+    .name { font-size: 1.3rem; font-weight: 700; margin-bottom: 2px; }
+    .name span { color: #f59e0b; }
+    .sub { font-size: .78rem; color: #94a3b8; margin-bottom: 24px; }
+    .steps { text-align: left; color: #94a3b8; font-size: .88rem; line-height: 1.7; margin-bottom: 20px; }
+    .steps strong { color: #e2e8f0; }
+    .qr-wrap { background: #fff; display: inline-block; padding: 12px; border-radius: 8px; margin: 16px 0; }
+    .qr-wrap img { display: block; width: 200px; height: 200px; }
+    .secret-box {
+      background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+      padding: 10px 14px; font-family: monospace; font-size: .9rem;
+      letter-spacing: .08em; color: #f59e0b; word-break: break-all; margin: 12px 0;
+    }
+    .error { background: #7f1d1d; color: #fecaca; border-radius: 8px; padding: 9px 12px; font-size: .85rem; margin-bottom: 16px; }
+    .back { margin-top: 20px; font-size: .8rem; color: #64748b; }
+    .back a { color: #94a3b8; text-decoration: none; }
+    .back a:hover { color: #f59e0b; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="{{ url_for('static', filename='img/c2s-symbol.png') }}" alt="Connect2Sun">
+    <div class="name">Connect2<span>Sun</span></div>
+    <div class="sub">Configurar autenticação em dois fatores</div>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% elif qr_data %}
+      <div class="steps">
+        <strong>1.</strong> Abre a tua app autenticadora (Google Authenticator, Aegis, etc.)<br>
+        <strong>2.</strong> Lê o QR code abaixo, ou introduz o segredo manualmente.<br>
+        <strong>3.</strong> Define <code>TOTP_SECRET</code> nas variáveis de ambiente do Render com o valor indicado.
+      </div>
+      <div class="qr-wrap">
+        <img src="data:image/png;base64,{{ qr_data }}" alt="QR Code MFA">
+      </div>
+      <div style="font-size:.78rem;color:#64748b;margin-bottom:6px;">Segredo (introdução manual):</div>
+      <div class="secret-box">{{ secret }}</div>
+    {% endif %}
+
+    <div class="back"><a href="/">← Voltar ao CRM</a></div>
+  </div>
+</body>
+</html>
