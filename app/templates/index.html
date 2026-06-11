@@ -640,7 +640,7 @@ async function deleteProposal(clientId) {
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
 // Fix: só fecha o modal se o clique COMEÇOU no overlay (mousedown).
-// Sem isto, arrastar o rato para fora da janela e soltar fecha o modal.
+// Sem isto, arrastar o rato para fora, ou mudar de janela/aba, fecha o modal.
 (function initModalClose() {
   let _downOnOverlay = false;
   document.addEventListener('mousedown', e => {
@@ -652,6 +652,9 @@ function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
     }
     _downOnOverlay = false;
   });
+  // Limpa o flag ao mudar de janela/aba — evita fechar o modal ao regressar.
+  window.addEventListener('blur', () => { _downOnOverlay = false; });
+  document.addEventListener('visibilitychange', () => { _downOnOverlay = false; });
 })();
 
 // ── Charts ────────────────────────────────────────────────────────────────────
