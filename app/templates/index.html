@@ -639,23 +639,7 @@ async function deleteProposal(clientId) {
 // ── Modals ────────────────────────────────────────────────────────────────────
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-// Fix: só fecha o modal se o clique COMEÇOU no overlay (mousedown).
-// Sem isto, arrastar o rato para fora, ou mudar de janela/aba, fecha o modal.
-(function initModalClose() {
-  let _downOnOverlay = false;
-  document.addEventListener('mousedown', e => {
-    _downOnOverlay = e.target.classList.contains('modal-overlay');
-  });
-  document.addEventListener('click', e => {
-    if (_downOnOverlay && e.target.classList.contains('modal-overlay')) {
-      e.target.classList.add('hidden');
-    }
-    _downOnOverlay = false;
-  });
-  // Limpa o flag ao mudar de janela/aba — evita fechar o modal ao regressar.
-  window.addEventListener('blur', () => { _downOnOverlay = false; });
-  document.addEventListener('visibilitychange', () => { _downOnOverlay = false; });
-})();
+// Modal fecha apenas via botões Cancelar / Guardar — nunca por clique no overlay.
 
 // ── Charts ────────────────────────────────────────────────────────────────────
 let chartOrigin = null;
