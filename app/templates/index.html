@@ -294,7 +294,7 @@
         <div class="form-group"><label>Potência Inversor (kW)</label><input name="inverter_power_kw" type="number" step="0.01"></div>
         <div class="form-group"><label>Bateria</label><input name="battery_model"></div>
         <div class="form-group"><label>Capacidade Bateria (kWh)</label><input name="battery_capacity_kwh" type="number" step="0.01"></div>
-        <div class="form-group"><label>Data Instalação</label><input name="installation_date" type="date"></div>
+        <div class="form-group"><label>Data Instalação</label><input name="installation_date" type="text" placeholder="dd/mm/aaaa" maxlength="10" oninput="maskDate(this)"></div>
         <div class="form-group"><label>Tipo Telhado</label>
           <select name="roof_type"><option value="">—</option><option>Telha</option><option>Plano</option><option>Solo</option></select>
         </div>
@@ -327,7 +327,7 @@
         <div class="form-group"><label>Resultado</label><input name="outcome"></div>
         <div class="form-group full"><label>Resumo *</label><textarea name="summary" required></textarea></div>
         <div class="form-group"><label>Próxima Ação</label><input name="next_action"></div>
-        <div class="form-group"><label>Data Próxima Ação</label><input name="next_action_date" type="date"></div>
+        <div class="form-group"><label>Data Próxima Ação</label><input name="next_action_date" type="text" placeholder="dd/mm/aaaa" maxlength="10" oninput="maskDate(this)"></div>
       </div>
     </form>
     <div class="modal-footer">
@@ -384,6 +384,26 @@ function fmtDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   return d.toLocaleDateString('pt-PT');
+}
+
+// ── Date format helpers (dd/mm/aaaa ↔ ISO) ───────────────────────────────────
+function isoToDMY(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('T')[0].split('-');
+  return `${d}/${m}/${y}`;
+}
+function dmyToISO(dmy) {
+  if (!dmy || dmy.length < 10) return '';
+  const [d, m, y] = dmy.split('/');
+  if (!d || !m || !y) return '';
+  return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+}
+function maskDate(el) {
+  // Remove tudo que não seja dígito e limita a 8 dígitos
+  let v = el.value.replace(/\D/g, '').slice(0, 8);
+  if (v.length > 4) v = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4);
+  else if (v.length > 2) v = v.slice(0,2) + '/' + v.slice(2);
+  el.value = v;
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
@@ -580,7 +600,8 @@ function openInteractionModal(interaction = null) {
   if (interaction) {
     Object.entries(interaction).forEach(([k, v]) => {
       const el = form.elements[k];
-      if (el && v !== null && v !== undefined) el.value = v;
+      if (!el || v === null || v === undefined) return;
+      el.value = (k === 'next_action_date') ? isoToDMY(v) : v;
     });
   }
   document.getElementById('interaction-modal').classList.remove('hidden');
@@ -590,6 +611,7 @@ async function saveInteraction() {
   const form = document.getElementById('interaction-form');
   const data = Object.fromEntries(new FormData(form).entries());
   Object.keys(data).forEach(k => { if (data[k] === '') delete data[k]; });
+  if (data.next_action_date) data.next_action_date = dmyToISO(data.next_action_date);
   try {
     if (editingInteractionId) {
       await apiFetch(`${API}/interactions/${editingInteractionId}`, { method: 'PUT', body: JSON.stringify(data) });
