@@ -34,6 +34,9 @@ class Client(db.Model):
     interactions = db.relationship(
         "Interaction", back_populates="client", cascade="all, delete-orphan", order_by="Interaction.created_at.desc()"
     )
+    documents = db.relationship(
+        "ClientDocument", back_populates="client", cascade="all, delete-orphan", order_by="ClientDocument.uploaded_at.asc()"
+    )
 
     def to_dict(self):
         return {
@@ -129,4 +132,26 @@ class Interaction(db.Model):
             "next_action": self.next_action,
             "next_action_date": self.next_action_date.isoformat() if self.next_action_date else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class ClientDocument(db.Model):
+    __tablename__ = "client_documents"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
+    original_name = db.Column(db.String(255), nullable=False)   # nome original do ficheiro
+    stored_name = db.Column(db.String(255), nullable=False)     # nome guardado em disco
+    label = db.Column(db.String(120))                           # descrição opcional
+    uploaded_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    client = db.relationship("Client", back_populates="documents")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "client_id": self.client_id,
+            "original_name": self.original_name,
+            "label": self.label,
+            "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
         }

@@ -548,6 +548,24 @@ async function openDetail(clientId) {
       </li>`).join('')}
     </ul>` : '<p style="color:var(--muted);font-size:.875rem;">Sem interações registadas.</p>';
 
+  const docsHtml = (c.documents && c.documents.length) ? `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Nome</th><th>Enviado em</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${c.documents.map(d => `
+            <tr>
+              <td>${d.label ? `<strong>${d.label}</strong><br><small style="color:var(--muted)">${d.original_name}</small>` : d.original_name}</td>
+              <td>${fmtDate(d.uploaded_at)}</td>
+              <td style="white-space:nowrap;">
+                <a class="btn btn-ghost btn-sm" href="/api/clients/${c.id}/documents/${d.id}/file" target="_blank">📄 Ver</a>
+                <button class="btn btn-danger btn-sm" onclick="deleteDocument(${c.id},${d.id})">🗑</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : '<p style="color:var(--muted);font-size:.875rem;padding:4px 0;">Nenhum documento carregado.</p>';
+
   document.getElementById('detail-content').innerHTML = `
     <div class="card">
       <div class="card-header">
@@ -558,12 +576,6 @@ async function openDetail(clientId) {
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" onclick="openClientModal(${c.id})">Editar</button>
           <button class="btn btn-green btn-sm" onclick="openInteractionModal()">+ Interação</button>
-          ${c.proposal_path
-            ? `<a class="btn btn-primary btn-sm" href="/api/clients/${c.id}/proposal-file" target="_blank">📄 Ver Proposta</a>
-               <label class="btn btn-ghost btn-sm" style="cursor:pointer;" title="Substituir PDF">↑ <input type="file" accept=".pdf" style="display:none" onchange="uploadProposal(${c.id},this)"></label>
-               <button class="btn btn-danger btn-sm" onclick="deleteProposal(${c.id})" title="Remover proposta">✕</button>`
-            : `<label class="btn btn-primary btn-sm" style="cursor:pointer;">📎 Carregar Proposta <input type="file" accept=".pdf" style="display:none" onchange="uploadProposal(${c.id},this)"></label>`
-          }
         </div>
       </div>
       <div class="detail-grid" style="grid-template-columns:1fr;">
@@ -580,6 +592,16 @@ async function openDetail(clientId) {
           ${c.notes ? `<div class="detail-row"><span class="key">Notas</span><span style="white-space:pre-wrap;line-height:1.5;">${linkify(c.notes)}</span></div>` : ''}
         </div>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Propostas / Documentos</h2>
+        <label class="btn btn-primary btn-sm" style="cursor:pointer;">
+          📎 Adicionar PDF
+          <input type="file" accept=".pdf" style="display:none" onchange="uploadDocument(${c.id},this)">
+        </label>
+      </div>
+      ${docsHtml}
     </div>
     <div class="card">
       <div class="card-header"><h2>Histórico de Interações</h2></div>
@@ -634,26 +656,26 @@ async function deleteInteraction(id) {
   } catch (e) { toast(e.message, true); }
 }
 
-// ── Proposta PDF ──────────────────────────────────────────────────────────────
-async function uploadProposal(clientId, input) {
+// ── Documentos PDF ────────────────────────────────────────────────────────────
+async function uploadDocument(clientId, input) {
   const file = input.files[0];
   if (!file) return;
   const form = new FormData();
   form.append('file', file);
   input.value = '';
   try {
-    const res = await fetch(`${API}/clients/${clientId}/upload-proposal`, { method: 'POST', body: form });
+    const res = await fetch(`${API}/clients/${clientId}/documents`, { method: 'POST', body: form });
     if (!res.ok) { const e = await res.json(); toast(e.error || 'Erro no upload', true); return; }
-    toast('Proposta carregada');
+    toast('Documento carregado');
     openDetail(clientId);
   } catch (e) { toast(e.message, true); }
 }
 
-async function deleteProposal(clientId) {
-  if (!confirm('Remover o PDF de proposta deste cliente?')) return;
+async function deleteDocument(clientId, docId) {
+  if (!confirm('Remover este documento?')) return;
   try {
-    await apiFetch(`${API}/clients/${clientId}/proposal-file`, { method: 'DELETE' });
-    toast('Proposta removida');
+    await apiFetch(`${API}/clients/${clientId}/documents/${docId}`, { method: 'DELETE' });
+    toast('Documento removido');
     openDetail(clientId);
   } catch (e) { toast(e.message, true); }
 }

@@ -40,6 +40,8 @@ def create_app(config_class=Config):
         # Usa abordagem compatível com SQLite e PostgreSQL.
         _add_column_if_missing(app, "clients", "locality", "VARCHAR(120)")
         _add_column_if_missing(app, "clients", "proposal_path", "VARCHAR(500)")
+        # Migrar proposal_path legado para client_documents (corre uma vez por registo).
+        _migrate_proposals_to_documents(app)
 
     return app
 
@@ -57,3 +59,32 @@ def _add_column_if_missing(app, table, column, col_type):
                     conn.commit()
         except Exception:
             pass  # tabela ainda não existe ou outro erro não crítico
+
+
+def _migrate_proposals_to_documents(app):
+    """Migra proposal_path legado → client_documents (idempotente)."""
+    with app.app_context():
+        try:
+            from sqlalchemy import inspect
+            insp = inspect(db.engine)
+            if "client_documents" not in insp.get_table_names():
+                return
+            from .models import Client, ClientDocument
+            clients = Client.query.filter(
+                Client.proposal_path.isnot(None), Client.proposal_path != ""
+            ).all()
+            for client in clients:
+                already = ClientDocument.query.filter_by(
+                    client_id=client.id, stored_name=client.proposal_path
+                ).first()
+                if not already:
+                    doc = ClientDocument(
+                        client_id=client.id,
+                        original_name=client.proposal_path,
+                        stored_name=client.proposal_path,
+                        label="Proposta",
+                    )
+                    db.session.add(doc)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()

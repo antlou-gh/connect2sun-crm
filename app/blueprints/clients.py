@@ -1,9 +1,10 @@
 import csv
 import io
 import os
+import uuid
 from flask import Blueprint, jsonify, request, make_response, current_app, send_from_directory
 from .. import db
-from ..models import Client
+from ..models import Client, ClientDocument
 
 CSV_FIELDS = ("client_number", "name", "email", "phone", "address", "city",
               "locality", "postal_code", "nif", "origin", "proposal_status", "notes")
@@ -56,6 +57,7 @@ def get_client(client_id):
     data = client.to_dict()
     data["installation"] = client.installation.to_dict() if client.installation else None
     data["interactions"] = [i.to_dict() for i in client.interactions]
+    data["documents"] = [d.to_dict() for d in client.documents]
     return jsonify(data)
 
 @bp.post("/")
@@ -190,6 +192,65 @@ def delete_proposal_file(client_id):
             os.remove(fpath)
         client.proposal_path = None
         db.session.commit()
+    return "", 204
+
+# ── Múltiplos documentos por cliente ──────────────────────────────────────────
+
+@bp.post("/<int:client_id>/documents")
+def upload_document(client_id):
+    """Faz upload de um PDF e cria um registo em client_documents."""
+    db.get_or_404(Client, client_id)
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "Ficheiro em falta"}), 400
+    if not f.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "Apenas ficheiros PDF são aceites"}), 400
+
+    original_name = f.filename
+    stored_name = f"doc_{uuid.uuid4().hex[:10]}_{original_name}"
+    label = (request.form.get("label") or "").strip() or None
+
+    fpath = os.path.join(proposals_folder(), stored_name)
+    f.save(fpath)
+
+    doc = ClientDocument(
+        client_id=client_id,
+        original_name=original_name,
+        stored_name=stored_name,
+        label=label,
+    )
+    db.session.add(doc)
+    db.session.commit()
+    return jsonify(doc.to_dict()), 201
+
+
+@bp.get("/<int:client_id>/documents/<int:doc_id>/file")
+def get_document_file(client_id, doc_id):
+    """Serve o PDF de um documento específico."""
+    doc = db.get_or_404(ClientDocument, doc_id)
+    if doc.client_id != client_id:
+        return jsonify({"error": "Não autorizado"}), 403
+    folder = proposals_folder()
+    fpath = os.path.join(folder, doc.stored_name)
+    if not os.path.exists(fpath):
+        return jsonify({"error": "Ficheiro não encontrado"}), 404
+    return send_from_directory(folder, doc.stored_name,
+                               mimetype="application/pdf",
+                               as_attachment=False,
+                               download_name=doc.original_name)
+
+
+@bp.delete("/<int:client_id>/documents/<int:doc_id>")
+def delete_document(client_id, doc_id):
+    """Remove um documento e o respectivo ficheiro."""
+    doc = db.get_or_404(ClientDocument, doc_id)
+    if doc.client_id != client_id:
+        return jsonify({"error": "Não autorizado"}), 403
+    fpath = os.path.join(proposals_folder(), doc.stored_name)
+    if os.path.exists(fpath):
+        os.remove(fpath)
+    db.session.delete(doc)
+    db.session.commit()
     return "", 204
 
 @bp.get("/export.csv")
