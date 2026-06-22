@@ -40,8 +40,12 @@ def create_app(config_class=Config):
         # Usa abordagem compatível com SQLite e PostgreSQL.
         _add_column_if_missing(app, "clients", "locality", "VARCHAR(120)")
         _add_column_if_missing(app, "clients", "proposal_path", "VARCHAR(500)")
-        # Migrar proposal_path legado para client_documents (corre uma vez por registo).
-        _migrate_proposals_to_documents(app)
+        # DESATIVADO (jun. 2026): a migração proposal_path → client_documents já
+        # cumpriu o propósito. Mantida em convivência com o multi-documento,
+        # gerava um ClientDocument duplicado por proposta (stored_name
+        # "client_<id>.pdf"). Ver backlog ponto 1. Definição mantida abaixo,
+        # apenas para referência/reversão.
+        # _migrate_proposals_to_documents(app)
 
     return app
 
