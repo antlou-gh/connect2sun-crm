@@ -1,9 +1,9 @@
 import csv
 import io
-import os
 import uuid
-from flask import Blueprint, jsonify, request, make_response, current_app, send_from_directory
-from .. import db
+from flask import Blueprint, jsonify, request, make_response
+from werkzeug.utils import secure_filename
+from .. import db, storage
 from ..models import Client, ClientDocument
 
 CSV_FIELDS = ("client_number", "name", "email", "phone", "address", "city",
@@ -25,12 +25,6 @@ def normalize_concelho(value):
 def next_client_number():
     current = db.session.query(db.func.max(Client.client_number)).scalar()
     return (current or 0) + 1
-
-
-def proposals_folder():
-    folder = os.path.join(current_app.root_path, "uploads", "proposals")
-    os.makedirs(folder, exist_ok=True)
-    return folder
 
 
 bp = Blueprint("clients", __name__)
@@ -135,11 +129,10 @@ def update_client(client_id):
 @bp.delete("/<int:client_id>")
 def delete_client(client_id):
     client = db.get_or_404(Client, client_id)
-    # Apagar ficheiro de proposta se existir
-    fname = f"client_{client_id}.pdf"
-    fpath = os.path.join(proposals_folder(), fname)
-    if os.path.exists(fpath):
-        os.remove(fpath)
+    # Apagar ficheiros associados (proposta + documentos)
+    storage.delete(client.proposal_path)
+    for doc in client.documents:
+        storage.delete(doc.stored_name)
     db.session.delete(client)
     db.session.commit()
     return "", 204
@@ -157,10 +150,9 @@ def upload_proposal(client_id):
         return jsonify({"error": "Apenas ficheiros PDF são aceites"}), 400
 
     fname = f"client_{client_id}.pdf"
-    fpath = os.path.join(proposals_folder(), fname)
-    f.save(fpath)
+    storage.save(fname, f)
 
-    # Guardar o path relativo no registo do cliente
+    # Guardar a chave no registo do cliente
     client = db.get_or_404(Client, client_id)
     client.proposal_path = fname
     db.session.commit()
@@ -173,13 +165,10 @@ def get_proposal_file(client_id):
     client = db.get_or_404(Client, client_id)
     if not client.proposal_path:
         return jsonify({"error": "Sem proposta guardada"}), 404
-    folder = proposals_folder()
-    fpath = os.path.join(folder, client.proposal_path)
-    if not os.path.exists(fpath):
+    resp = storage.serve(client.proposal_path)
+    if resp is None:
         return jsonify({"error": "Ficheiro não encontrado"}), 404
-    return send_from_directory(folder, client.proposal_path,
-                               mimetype="application/pdf",
-                               as_attachment=False)
+    return resp
 
 
 @bp.delete("/<int:client_id>/proposal-file")
@@ -187,9 +176,7 @@ def delete_proposal_file(client_id):
     """Remove o PDF de proposta deste cliente."""
     client = db.get_or_404(Client, client_id)
     if client.proposal_path:
-        fpath = os.path.join(proposals_folder(), client.proposal_path)
-        if os.path.exists(fpath):
-            os.remove(fpath)
+        storage.delete(client.proposal_path)
         client.proposal_path = None
         db.session.commit()
     return "", 204
@@ -207,11 +194,10 @@ def upload_document(client_id):
         return jsonify({"error": "Apenas ficheiros PDF são aceites"}), 400
 
     original_name = f.filename
-    stored_name = f"doc_{uuid.uuid4().hex[:10]}_{original_name}"
+    stored_name = f"doc_{uuid.uuid4().hex[:10]}_{secure_filename(original_name)}"
     label = (request.form.get("label") or "").strip() or None
 
-    fpath = os.path.join(proposals_folder(), stored_name)
-    f.save(fpath)
+    storage.save(stored_name, f)
 
     doc = ClientDocument(
         client_id=client_id,
@@ -230,14 +216,10 @@ def get_document_file(client_id, doc_id):
     doc = db.get_or_404(ClientDocument, doc_id)
     if doc.client_id != client_id:
         return jsonify({"error": "Não autorizado"}), 403
-    folder = proposals_folder()
-    fpath = os.path.join(folder, doc.stored_name)
-    if not os.path.exists(fpath):
+    resp = storage.serve(doc.stored_name, download_name=doc.original_name)
+    if resp is None:
         return jsonify({"error": "Ficheiro não encontrado"}), 404
-    return send_from_directory(folder, doc.stored_name,
-                               mimetype="application/pdf",
-                               as_attachment=False,
-                               download_name=doc.original_name)
+    return resp
 
 
 @bp.delete("/<int:client_id>/documents/<int:doc_id>")
@@ -246,9 +228,7 @@ def delete_document(client_id, doc_id):
     doc = db.get_or_404(ClientDocument, doc_id)
     if doc.client_id != client_id:
         return jsonify({"error": "Não autorizado"}), 403
-    fpath = os.path.join(proposals_folder(), doc.stored_name)
-    if os.path.exists(fpath):
-        os.remove(fpath)
+    storage.delete(doc.stored_name)
     db.session.delete(doc)
     db.session.commit()
     return "", 204
