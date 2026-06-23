@@ -115,7 +115,7 @@ def update_client(client_id):
         client.client_number = new_number
 
     fields = ("name", "email", "phone", "address", "locality", "postal_code", "nif",
-              "origin", "proposal_status", "notes", "proposal_path")
+              "origin", "proposal_status", "notes")
     for field in fields:
         if field in body:
             setattr(client, field, body[field])
@@ -129,56 +129,11 @@ def update_client(client_id):
 @bp.delete("/<int:client_id>")
 def delete_client(client_id):
     client = db.get_or_404(Client, client_id)
-    # Apagar ficheiros associados (proposta + documentos)
-    storage.delete(client.proposal_path)
+    # Apagar ficheiros associados (documentos)
     for doc in client.documents:
         storage.delete(doc.stored_name)
     db.session.delete(client)
     db.session.commit()
-    return "", 204
-
-# ── Upload / download de proposta PDF ──────────────────────────────────────────
-
-@bp.post("/<int:client_id>/upload-proposal")
-def upload_proposal(client_id):
-    """Recebe um PDF e guarda-o em uploads/proposals/client_<id>.pdf"""
-    db.get_or_404(Client, client_id)
-    f = request.files.get("file")
-    if not f:
-        return jsonify({"error": "Ficheiro em falta"}), 400
-    if not f.filename.lower().endswith(".pdf"):
-        return jsonify({"error": "Apenas ficheiros PDF são aceites"}), 400
-
-    fname = f"client_{client_id}.pdf"
-    storage.save(fname, f)
-
-    # Guardar a chave no registo do cliente
-    client = db.get_or_404(Client, client_id)
-    client.proposal_path = fname
-    db.session.commit()
-    return jsonify({"ok": True, "filename": fname}), 200
-
-
-@bp.get("/<int:client_id>/proposal-file")
-def get_proposal_file(client_id):
-    """Serve o PDF de proposta guardado para este cliente."""
-    client = db.get_or_404(Client, client_id)
-    if not client.proposal_path:
-        return jsonify({"error": "Sem proposta guardada"}), 404
-    resp = storage.serve(client.proposal_path)
-    if resp is None:
-        return jsonify({"error": "Ficheiro não encontrado"}), 404
-    return resp
-
-
-@bp.delete("/<int:client_id>/proposal-file")
-def delete_proposal_file(client_id):
-    """Remove o PDF de proposta deste cliente."""
-    client = db.get_or_404(Client, client_id)
-    if client.proposal_path:
-        storage.delete(client.proposal_path)
-        client.proposal_path = None
-        db.session.commit()
     return "", 204
 
 # ── Múltiplos documentos por cliente ──────────────────────────────────────────

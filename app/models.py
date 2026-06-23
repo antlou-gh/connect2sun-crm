@@ -20,7 +20,9 @@ class Client(db.Model):
         db.String(30), nullable=False, default="lead"
     )  # lead, contacted, proposal_sent, negotiation, won, lost
     notes = db.Column(db.Text)
-    proposal_path = db.Column(db.String(500))  # caminho ou URL para o PDF da proposta
+    # DESCONTINUADO (jun. 2026): substituído por ClientDocument. Coluna mantida
+    # vazia para evitar migração destrutiva de schema; já não é lida nem escrita.
+    proposal_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(
         db.DateTime,
@@ -53,7 +55,6 @@ class Client(db.Model):
             "origin": self.origin,
             "proposal_status": self.proposal_status,
             "notes": self.notes,
-            "proposal_path": self.proposal_path,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
