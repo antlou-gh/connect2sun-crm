@@ -34,6 +34,10 @@ def create_app(config_class=Config):
     # Exige login em todas as rotas (exceto /login e estáticos).
     app.before_request(require_login)
 
+    # Comandos CLI personalizados (flask clientes-nif, futuramente importar-financeiro, ...)
+    from .cli import register_cli
+    register_cli(app)
+
     with app.app_context():
         db.create_all()
         # Migracoes automaticas — adicionar colunas novas sem perder dados.
