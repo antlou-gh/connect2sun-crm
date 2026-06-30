@@ -136,6 +136,20 @@
     /* ── Import/Export ── */
     #import-file { display: none; }
 
+    /* ── Financeiro ── */
+    .subnav { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .subnav button { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; padding: 9px 16px; font-size: .92rem; font-weight: 600; transition: color .15s, border-color .15s; }
+    .subnav button.active { color: var(--sun); border-bottom-color: var(--sun); }
+    .subnav button:hover { color: var(--text); }
+    .fin-view { display: none; }
+    .fin-view.active { display: block; }
+    .money { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+    .money.pos { color: var(--green); }
+    .money.neg { color: var(--danger); }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .72rem; font-weight: 600; background: var(--th-bg); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
+    .pill.warn { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
+    .inline-select { padding: 4px 8px; font-size: .82rem; }
+
     @media (max-width: 600px) {
       .form-grid, .form-grid.cols-3, .detail-grid, .charts-grid { grid-template-columns: 1fr; }
     }
@@ -154,6 +168,7 @@
   <div class="nav-links">
     <button class="active" onclick="showView('dashboard')">Dashboard</button>
     <button onclick="showView('clients')">Clientes</button>
+    <button onclick="showView('financeiro')">Financeiro</button>
   </div>
   <button id="dark-toggle" onclick="toggleDark()" title="Alternar tema">☀️</button>
   <a id="logout-btn" href="/logout" title="Sair">Sair</a>
@@ -230,6 +245,112 @@
       <button class="btn btn-ghost btn-sm" onclick="showView('clients')">← Voltar</button>
     </div>
     <div id="detail-content"></div>
+  </div>
+
+  <!-- Financeiro -->
+  <div id="view-financeiro" class="view">
+    <div class="subnav">
+      <button class="active" data-fintab="movimentos" onclick="showFinTab('movimentos')">Movimentos</button>
+      <button data-fintab="pl" onclick="showFinTab('pl')">P&amp;L</button>
+      <button data-fintab="margem" onclick="showFinTab('margem')">Margem por Cliente</button>
+      <button data-fintab="categorizar" onclick="showFinTab('categorizar')">Por Categorizar <span id="badge-categorizar" class="pill warn" style="display:none"></span></button>
+      <button data-fintab="associar" onclick="showFinTab('associar')">Por Associar <span id="badge-associar" class="pill warn" style="display:none"></span></button>
+    </div>
+
+    <!-- Movimentos -->
+    <div id="fin-movimentos" class="fin-view active">
+      <div class="card">
+        <div class="card-header">
+          <h2>Movimentos</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" onclick="exportFinanceiro()">↓ Exportar para Excel</button>
+            <button class="btn btn-primary" onclick="openMovimentoModal()">+ Novo Movimento</button>
+          </div>
+        </div>
+        <div class="filters">
+          <input type="text" id="mov-q" placeholder="Pesquisar descrição…" oninput="loadMovimentos()">
+          <select id="mov-mes" onchange="loadMovimentos()"><option value="">Todos os meses</option></select>
+          <select id="mov-tipo" onchange="loadMovimentos()"><option value="">Todos os tipos</option></select>
+          <select id="mov-categoria" onchange="loadMovimentos()"><option value="">Todas as categorias</option><option value="__none__">— Sem categoria —</option></select>
+          <select id="mov-estado" onchange="loadMovimentos()"><option value="">Todos os estados</option></select>
+          <select id="mov-cliente" onchange="loadMovimentos()"><option value="">Todos os clientes</option></select>
+        </div>
+        <div class="table-wrap">
+          <table id="mov-table">
+            <thead><tr><th>Nº</th><th>Data</th><th>Descrição</th><th>Tipo</th><th>Categoria</th><th>Cliente</th><th>Estado</th><th style="text-align:right;">Valor</th><th>Ações</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- P&L -->
+    <div id="fin-pl" class="fin-view">
+      <div class="card">
+        <div class="card-header">
+          <h2>Conta de Resultados (P&amp;L)</h2>
+          <div style="display:flex;gap:8px;">
+            <select id="pl-ano" onchange="loadPL()"></select>
+            <select id="pl-mes" onchange="loadPL()"><option value="">Ano inteiro</option></select>
+          </div>
+        </div>
+        <div class="stats" id="pl-stats"></div>
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3>Resultado</h3>
+            <div class="chart-wrap"><canvas id="chart-pl"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>Custos de Estrutura por Categoria</h3>
+            <div class="chart-wrap"><canvas id="chart-estrutura"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Margem por cliente -->
+    <div id="fin-margem" class="fin-view">
+      <div class="card">
+        <div class="card-header">
+          <h2>Margem por Cliente</h2>
+          <select id="margem-ano" onchange="loadMargem()"></select>
+        </div>
+        <div class="table-wrap">
+          <table id="margem-table">
+            <thead><tr><th>Nº</th><th>Cliente</th><th style="text-align:right;">Faturação</th><th style="text-align:right;">Custos (Mat./Serv.)</th><th style="text-align:right;">Margem</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Por categorizar -->
+    <div id="fin-categorizar" class="fin-view">
+      <div class="card">
+        <div class="card-header"><h2>Movimentos por Categorizar</h2></div>
+        <p style="color:var(--muted);font-size:.85rem;margin-bottom:14px;">Custos gerais e Pagamentos ao Estado sem categoria. Escolhe a categoria em cada linha (gravação imediata).</p>
+        <div class="table-wrap">
+          <table id="categorizar-table">
+            <thead><tr><th>Nº</th><th>Data</th><th>Descrição</th><th>Tipo</th><th style="text-align:right;">Valor</th><th>Categoria</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Por associar -->
+    <div id="fin-associar" class="fin-view">
+      <div class="card">
+        <div class="card-header"><h2>Movimentos por Associar a Cliente</h2></div>
+        <p style="color:var(--muted);font-size:.85rem;margin-bottom:14px;">Facturação e Material/Serviços sem cliente. Escolhe o cliente em cada linha (gravação imediata).</p>
+        <div class="table-wrap">
+          <table id="associar-table">
+            <thead><tr><th>Nº</th><th>Data</th><th>Descrição</th><th>Tipo</th><th style="text-align:right;">Valor</th><th>Cliente</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 
 </main>
@@ -337,6 +458,33 @@
   </div>
 </div>
 
+<!-- Movimento modal -->
+<div id="movimento-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h3 id="movimento-modal-title">Novo Movimento</h3>
+    <form id="movimento-form">
+      <div class="form-grid">
+        <div class="form-group full"><label>Descrição *</label><input name="descricao" required></div>
+        <div class="form-group"><label>Valor (€) * <span style="text-transform:none;font-weight:400;">— negativo = saída</span></label><input name="valor" type="number" step="0.01" required></div>
+        <div class="form-group"><label>Data *</label><input name="data" type="text" placeholder="dd/mm/aaaa" maxlength="10" oninput="maskDate(this)"></div>
+        <div class="form-group"><label>Tipo de Movimento</label><select name="tipo_movimento"></select></div>
+        <div class="form-group"><label>Estado</label><select name="estado"></select></div>
+        <div class="form-group"><label>Categoria</label><select name="categoria"></select></div>
+        <div class="form-group"><label>Cliente</label><select name="cliente_id"></select></div>
+        <div class="form-group"><label>Entidade Emissora</label><input name="entidade_emissora"></div>
+        <div class="form-group"><label>Nº de Factura</label><input name="num_factura"></div>
+        <div class="form-group"><label>Valor s/ IVA (€)</label><input name="valor_siva" type="number" step="0.01"></div>
+        <div class="form-group"><label>IVA (€)</label><input name="iva" type="number" step="0.01"></div>
+        <div class="form-group"><label>IVA % (ex: 0.23)</label><input name="iva_pct" type="number" step="0.01"></div>
+      </div>
+    </form>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('movimento-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveMovimento()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -353,6 +501,7 @@ function showView(name) {
   document.querySelectorAll('.nav-links button').forEach(b => b.classList.remove('active'));
   if (name === 'dashboard') { document.querySelector('.nav-links button').classList.add('active'); loadDashboard(); }
   if (name === 'clients') { document.querySelectorAll('.nav-links button')[1].classList.add('active'); loadClients(); }
+  if (name === 'financeiro') { document.querySelectorAll('.nav-links button')[2].classList.add('active'); loadFinanceiro(); }
 }
 
 // ── Toast ────────────────────────────────────────────────────────────────────
@@ -526,6 +675,8 @@ function linkify(text) {
 async function openDetail(clientId) {
   currentClientId = clientId;
   const c = await apiFetch(`${API}/clients/${clientId}`);
+  let fin = null;
+  try { fin = await apiFetch(`${API}/financeiro/cliente/${clientId}`); } catch(_){}
 
   const ITYPE_LABELS = { call:'Chamada', email:'Email', visit:'Visita', whatsapp:'WhatsApp', meeting:'Reunião', other:'Outro' };
 
@@ -566,6 +717,20 @@ async function openDetail(clientId) {
       </table>
     </div>` : '<p style="color:var(--muted);font-size:.875rem;padding:4px 0;">Nenhum documento carregado.</p>';
 
+  const finHtml = fin ? `
+    <div class="card">
+      <div class="card-header"><h2>Financeiro</h2></div>
+      <div class="stats" style="margin-bottom:16px;">
+        <div class="stat-card"><div class="value" style="font-size:1.35rem;">${fmtEur(fin.faturacao)}</div><div class="label">Faturação</div></div>
+        <div class="stat-card"><div class="value" style="font-size:1.35rem;">${fmtEur(fin.custos)}</div><div class="label">Custos (Mat./Serv.)</div></div>
+        <div class="stat-card"><div class="value" style="font-size:1.35rem;color:${fin.margem>=0?'var(--green)':'var(--danger)'};">${fmtEur(fin.margem)}</div><div class="label">Margem</div></div>
+      </div>
+      ${fin.movimentos.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Nº</th><th>Data</th><th>Descrição</th><th>Tipo</th><th style="text-align:right;">Valor</th></tr></thead>
+        <tbody>${fin.movimentos.map(t=>`<tr><td>${t.numero_ordem??'—'}</td><td>${fmtDate(t.data)}</td><td>${escapeHtml(t.descricao)}</td><td><span class="pill">${t.tipo_movimento||'—'}</span></td>${moneyCell(t.valor)}</tr>`).join('')}</tbody>
+      </table></div>` : '<p style="color:var(--muted);font-size:.875rem;">Sem movimentos associados.</p>'}
+    </div>` : '';
+
   document.getElementById('detail-content').innerHTML = `
     <div class="card">
       <div class="card-header">
@@ -603,6 +768,7 @@ async function openDetail(clientId) {
       </div>
       ${docsHtml}
     </div>
+    ${finHtml}
     <div class="card">
       <div class="card-header"><h2>Histórico de Interações</h2></div>
       ${interactionsHtml}
@@ -804,6 +970,265 @@ function toggleDark() {
     document.getElementById('dark-toggle').textContent = saved === 'dark' ? '🌙' : '☀️';
   });
 })();
+
+// ── Financeiro ─────────────────────────────────────────────────────────────────
+let finMeta = null;
+let finFiltersReady = false;
+let currentFinTab = 'movimentos';
+let editingMovimentoId = null;
+let finChartPL = null, finChartEstrutura = null;
+
+function escapeHtml(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtEur(v){
+  if (v === null || v === undefined) return '—';
+  return Number(v).toLocaleString('pt-PT', { style:'currency', currency:'EUR' });
+}
+function moneyCell(v){
+  const cls = Number(v) < 0 ? 'neg' : 'pos';
+  return `<td style="text-align:right;"><span class="money ${cls}">${fmtEur(v)}</span></td>`;
+}
+function optionList(items, current, placeholder){
+  let html = `<option value="">${placeholder ?? '—'}</option>`;
+  items.forEach(v => html += `<option value="${v}"${v===current?' selected':''}>${v}</option>`);
+  return html;
+}
+function clienteOptions(current, placeholder){
+  let html = `<option value="">${placeholder ?? '—'}</option>`;
+  finMeta.clientes.forEach(c => {
+    const label = (c.client_number!=null?('#'+c.client_number+' '):'') + c.name;
+    html += `<option value="${c.id}"${c.id===current?' selected':''}>${escapeHtml(label)}</option>`;
+  });
+  return html;
+}
+
+async function ensureFinMeta(){
+  if (!finMeta) finMeta = await apiFetch(`${API}/financeiro/meta`);
+  return finMeta;
+}
+
+async function loadFinanceiro(){
+  await ensureFinMeta();
+  populateFinFilters();
+  showFinTab(currentFinTab);
+  refreshFinBadges();
+}
+
+function populateFinFilters(){
+  if (finFiltersReady) return;
+  finFiltersReady = true;
+  const mesOpts = finMeta.meses.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  document.getElementById('mov-mes').insertAdjacentHTML('beforeend', mesOpts);
+  document.getElementById('pl-mes').insertAdjacentHTML('beforeend', mesOpts);
+  document.getElementById('mov-tipo').insertAdjacentHTML('beforeend', finMeta.tipos_movimento.map(t=>`<option>${t}</option>`).join(''));
+  document.getElementById('mov-categoria').insertAdjacentHTML('beforeend', finMeta.categorias.map(c=>`<option>${c}</option>`).join(''));
+  document.getElementById('mov-estado').insertAdjacentHTML('beforeend', finMeta.estados.map(e=>`<option>${e}</option>`).join(''));
+  document.getElementById('mov-cliente').insertAdjacentHTML('beforeend', finMeta.clientes.map(c=>`<option value="${c.id}">${escapeHtml((c.client_number!=null?'#'+c.client_number+' ':'')+c.name)}</option>`).join(''));
+  const anoAtual = new Date().getFullYear();
+  const anos = [];
+  for (let y=Math.max(anoAtual+1, 2026); y>=2024; y--) anos.push(y);
+  const anoOpts = anos.map(y=>`<option value="${y}"${y===2026?' selected':''}>${y}</option>`).join('');
+  document.getElementById('pl-ano').innerHTML = anoOpts;
+  document.getElementById('margem-ano').innerHTML = `<option value="">Todos os anos</option>` + anoOpts;
+}
+
+function showFinTab(tab){
+  currentFinTab = tab;
+  document.querySelectorAll('.fin-view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('fin-'+tab).classList.add('active');
+  document.querySelectorAll('.subnav button').forEach(b=>b.classList.toggle('active', b.dataset.fintab===tab));
+  if (tab==='movimentos') loadMovimentos();
+  if (tab==='pl') loadPL();
+  if (tab==='margem') loadMargem();
+  if (tab==='categorizar') loadCategorizar();
+  if (tab==='associar') loadAssociar();
+}
+
+async function refreshFinBadges(){
+  try {
+    const [cat, assoc] = await Promise.all([
+      apiFetch(`${API}/financeiro/por-categorizar`),
+      apiFetch(`${API}/financeiro/por-associar`),
+    ]);
+    setBadge('badge-categorizar', cat.length);
+    setBadge('badge-associar', assoc.length);
+  } catch(_){}
+}
+function setBadge(id, n){
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (n>0){ el.textContent = n; el.style.display=''; } else { el.style.display='none'; }
+}
+
+// ── Movimentos ──
+async function loadMovimentos(){
+  const p = new URLSearchParams();
+  const q = document.getElementById('mov-q').value.trim(); if (q) p.set('q', q);
+  const mes = document.getElementById('mov-mes').value; if (mes) p.set('mes', mes);
+  const tipo = document.getElementById('mov-tipo').value; if (tipo) p.set('tipo_movimento', tipo);
+  const cat = document.getElementById('mov-categoria').value; if (cat) p.set('categoria', cat);
+  const est = document.getElementById('mov-estado').value; if (est) p.set('estado', est);
+  const cli = document.getElementById('mov-cliente').value; if (cli) p.set('cliente_id', cli);
+  const rows = await apiFetch(`${API}/financeiro/transacoes?`+p.toString());
+  const tbody = document.querySelector('#mov-table tbody');
+  if (!rows.length){ tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);">Sem movimentos.</td></tr>`; return; }
+  tbody.innerHTML = rows.map(t=>`
+    <tr>
+      <td>${t.numero_ordem ?? '—'}</td>
+      <td>${fmtDate(t.data)}</td>
+      <td>${escapeHtml(t.descricao)}</td>
+      <td><span class="pill">${t.tipo_movimento || '—'}</span></td>
+      <td>${t.categoria ? `<span class="pill">${t.categoria}</span>` : '—'}</td>
+      <td>${t.cliente_nome ? `${t.cliente_numero!=null?'#'+t.cliente_numero+' ':''}${escapeHtml(t.cliente_nome)}` : '—'}</td>
+      <td>${t.estado || '—'}</td>
+      ${moneyCell(t.valor)}
+      <td style="white-space:nowrap;" onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" onclick="openMovimentoModal(${JSON.stringify(t).replace(/"/g,'&quot;')})">Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteMovimento(${t.id})">Apagar</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openMovimentoModal(mov=null){
+  editingMovimentoId = mov ? mov.id : null;
+  const form = document.getElementById('movimento-form');
+  form.reset();
+  document.getElementById('movimento-modal-title').textContent = mov ? 'Editar Movimento' : 'Novo Movimento';
+  form.elements['tipo_movimento'].innerHTML = optionList(finMeta.tipos_movimento, mov && mov.tipo_movimento, '—');
+  form.elements['estado'].innerHTML = optionList(finMeta.estados, mov && mov.estado, '—');
+  form.elements['categoria'].innerHTML = optionList(finMeta.categorias, mov && mov.categoria, '— Sem categoria —');
+  form.elements['cliente_id'].innerHTML = clienteOptions(mov && mov.cliente_id, '— Sem cliente —');
+  if (mov){
+    ['descricao','valor','entidade_emissora','num_factura','valor_siva','iva','iva_pct'].forEach(k=>{ if(mov[k]!=null) form.elements[k].value = mov[k]; });
+    form.elements['data'].value = isoToDMY(mov.data);
+  }
+  document.getElementById('movimento-modal').classList.remove('hidden');
+}
+
+async function saveMovimento(){
+  const form = document.getElementById('movimento-form');
+  const data = Object.fromEntries(new FormData(form).entries());
+  data.data = dmyToISO(data.data);
+  if (!data.descricao || data.valor === '' || !data.data){ toast('Descrição, valor e data são obrigatórios', true); return; }
+  try {
+    if (editingMovimentoId){
+      await apiFetch(`${API}/financeiro/transacoes/${editingMovimentoId}`, { method:'PUT', body: JSON.stringify(data) });
+      toast('Movimento atualizado');
+    } else {
+      await apiFetch(`${API}/financeiro/transacoes`, { method:'POST', body: JSON.stringify(data) });
+      toast('Movimento criado');
+    }
+    closeModal('movimento-modal');
+    loadMovimentos();
+    refreshFinBadges();
+  } catch(e){ toast(e.message, true); }
+}
+
+async function deleteMovimento(id){
+  if (!confirm('Apagar este movimento?')) return;
+  try { await apiFetch(`${API}/financeiro/transacoes/${id}`, { method:'DELETE' }); toast('Movimento apagado'); loadMovimentos(); refreshFinBadges(); }
+  catch(e){ toast(e.message, true); }
+}
+
+// ── P&L ──
+async function loadPL(){
+  const p = new URLSearchParams();
+  const ano = document.getElementById('pl-ano').value; if (ano) p.set('ano', ano);
+  const mes = document.getElementById('pl-mes').value; if (mes) p.set('mes', mes);
+  const d = await apiFetch(`${API}/financeiro/dashboard/pl?`+p.toString());
+  document.getElementById('pl-stats').innerHTML = [
+    ['Receita', d.receita, 'var(--sun)'],
+    ['Custos Diretos', d.custos_diretos, 'var(--sun)'],
+    ['Custos Estrutura', d.custos_estrutura, 'var(--sun)'],
+    ['Resultado', d.resultado, d.resultado>=0?'var(--green)':'var(--danger)'],
+  ].map(([l,v,col])=>`<div class="stat-card"><div class="value" style="color:${col};font-size:1.35rem;">${fmtEur(v)}</div><div class="label">${l}</div></div>`).join('')
+    + `<div class="stat-card"><div class="value" style="font-size:1.35rem;">${d.num_movimentos}</div><div class="label">Movimentos</div></div>`;
+  renderPLCharts(d);
+}
+
+function renderPLCharts(d){
+  if (finChartPL) finChartPL.destroy();
+  finChartPL = new Chart(document.getElementById('chart-pl'), {
+    type:'bar',
+    data:{ labels:['Receita','Custos Diretos','Custos Estrutura','Resultado'],
+      datasets:[{ data:[d.receita, d.custos_diretos, d.custos_estrutura, d.resultado],
+        backgroundColor:['#16a34a','#f59e0b','#ef4444', d.resultado>=0?'#3b82f6':'#dc2626'], borderRadius:6, borderSkipped:false }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false},
+        tooltip:{ callbacks:{ label:ctx=>` ${fmtEur(ctx.raw)}` } } },
+      scales:{ x:{ ticks:{color:chartTextColor(), font:{size:11}}, grid:{display:false} },
+        y:{ ticks:{color:chartTextColor(), font:{size:11}}, grid:{color:chartGridColor()}, beginAtZero:true } } }
+  });
+  if (finChartEstrutura) finChartEstrutura.destroy();
+  const labels = Object.keys(d.breakdown_estrutura), vals = Object.values(d.breakdown_estrutura);
+  if (!labels.length) return;
+  finChartEstrutura = new Chart(document.getElementById('chart-estrutura'), {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data:vals, backgroundColor:CHART_COLORS, borderWidth:2,
+      borderColor: getComputedStyle(document.documentElement).getPropertyValue('--card') || '#fff' }] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'bottom', labels:{color:chartTextColor(), boxWidth:12, padding:12, font:{size:11}} },
+        tooltip:{ callbacks:{ label:ctx=>` ${ctx.label}: ${fmtEur(ctx.raw)}` } } } }
+  });
+}
+
+// ── Margem por cliente ──
+async function loadMargem(){
+  const p = new URLSearchParams();
+  const ano = document.getElementById('margem-ano').value; if (ano) p.set('ano', ano);
+  const rows = await apiFetch(`${API}/financeiro/dashboard/margem-cliente?`+p.toString());
+  const tbody = document.querySelector('#margem-table tbody');
+  if (!rows.length){ tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);">Sem clientes com movimentos.</td></tr>`; return; }
+  tbody.innerHTML = rows.map(r=>`
+    <tr>
+      <td>${r.cliente_numero ?? '—'}</td>
+      <td>${escapeHtml(r.cliente_nome||'—')}</td>
+      ${moneyCell(r.faturacao)}
+      ${moneyCell(r.custos)}
+      ${moneyCell(r.margem)}
+    </tr>`).join('');
+}
+
+// ── Por categorizar (inline) ──
+async function loadCategorizar(){
+  const rows = await apiFetch(`${API}/financeiro/por-categorizar`);
+  const tbody = document.querySelector('#categorizar-table tbody');
+  if (!rows.length){ tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);">Nada por categorizar 🎉</td></tr>`; return; }
+  tbody.innerHTML = rows.map(t=>`
+    <tr>
+      <td>${t.numero_ordem ?? '—'}</td><td>${fmtDate(t.data)}</td><td>${escapeHtml(t.descricao)}</td>
+      <td><span class="pill">${t.tipo_movimento}</span></td>
+      ${moneyCell(t.valor)}
+      <td><select class="inline-select" onchange="setCategoria(${t.id}, this.value)">${optionList(finMeta.categorias, null, '— escolher —')}</select></td>
+    </tr>`).join('');
+}
+async function setCategoria(id, value){
+  if (!value) return;
+  try { await apiFetch(`${API}/financeiro/transacoes/${id}`, { method:'PUT', body: JSON.stringify({categoria:value}) }); toast('Categoria gravada'); loadCategorizar(); refreshFinBadges(); }
+  catch(e){ toast(e.message, true); }
+}
+
+// ── Por associar (inline) ──
+async function loadAssociar(){
+  const rows = await apiFetch(`${API}/financeiro/por-associar`);
+  const tbody = document.querySelector('#associar-table tbody');
+  if (!rows.length){ tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);">Nada por associar 🎉</td></tr>`; return; }
+  tbody.innerHTML = rows.map(t=>`
+    <tr>
+      <td>${t.numero_ordem ?? '—'}</td><td>${fmtDate(t.data)}</td><td>${escapeHtml(t.descricao)}</td>
+      <td><span class="pill">${t.tipo_movimento}</span></td>
+      ${moneyCell(t.valor)}
+      <td><select class="inline-select" onchange="setCliente(${t.id}, this.value)">${clienteOptions(null, '— escolher —')}</select></td>
+    </tr>`).join('');
+}
+async function setCliente(id, value){
+  if (!value) return;
+  try { await apiFetch(`${API}/financeiro/transacoes/${id}`, { method:'PUT', body: JSON.stringify({cliente_id:value}) }); toast('Cliente associado'); loadAssociar(); refreshFinBadges(); }
+  catch(e){ toast(e.message, true); }
+}
+
+function exportFinanceiro(){
+  const ano = (document.getElementById('pl-ano') && document.getElementById('pl-ano').value) || 2026;
+  window.location.href = `${API}/financeiro/exportar?ano=${ano}`;
+}
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 loadDashboard();
