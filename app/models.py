@@ -2,6 +2,19 @@ from datetime import datetime, timezone
 from . import db
 
 
+# ── Valores fechados do módulo financeiro ─────────────────────────────────────
+# Usamos String + listas de constantes validadas na aplicação (NÃO ENUM nativo
+# do Postgres: acrescentar valores a um enum mais tarde é doloroso).
+ESTADOS = ["Fechado", "Falta receber", "Falta pagar", "Pag. Parcial"]
+TIPOS_MOVIMENTO = ["Custos gerais", "Facturação", "Material/Serviços",
+                   "Nota de crédito", "Pagamentos ao Estado"]
+CATEGORIAS = ["Estrutura", "Viaturas", "Marketing", "Seguros", "Royalties"]
+
+# Meses em português — usado pela importação (texto→nº) e pela exportação (nº→texto)
+MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+         "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+
+
 class Client(db.Model):
     __tablename__ = "clients"
 
@@ -38,6 +51,12 @@ class Client(db.Model):
     )
     documents = db.relationship(
         "ClientDocument", back_populates="client", cascade="all, delete-orphan", order_by="ClientDocument.uploaded_at.asc()"
+    )
+    # ORM apenas (não altera colunas do Client) — facilita a margem por cliente.
+    # Sem cascade: apagar um cliente não deve apagar os movimentos financeiros;
+    # a FK fica a NULL (movimento passa a "sem cliente").
+    transacoes = db.relationship(
+        "Transacao", back_populates="cliente", order_by="Transacao.data.asc()"
     )
 
     def to_dict(self):
@@ -155,4 +174,60 @@ class ClientDocument(db.Model):
             "original_name": self.original_name,
             "label": self.label,
             "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
+        }
+
+
+class Transacao(db.Model):
+    """Movimento financeiro — fonte de verdade (substitui o Excel BD Finanças).
+
+    Valores fechados (`estado`, `tipo_movimento`, `categoria`) são String
+    validados na aplicação contra ESTADOS / TIPOS_MOVIMENTO / CATEGORIAS.
+    """
+    __tablename__ = "transacoes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    numero_ordem = db.Column(db.Integer, unique=True, index=True)  # "Nº de ordem" do Excel
+    descricao = db.Column(db.Text, nullable=False)
+    valor = db.Column(db.Float, nullable=False)          # com sinal: -custo / +receita
+    entidade_emissora = db.Column(db.String(120))
+    num_factura = db.Column(db.String(60))
+    valor_siva = db.Column(db.Float)                     # valor sem IVA
+    iva = db.Column(db.Float)                            # montante de IVA
+    iva_pct = db.Column(db.Float)                        # ex.: 0.23
+    data = db.Column(db.Date, nullable=False, index=True)  # consolida Dia + Mês + ano
+    estado = db.Column(db.String(20))                    # ESTADOS
+    tipo_movimento = db.Column(db.String(30))            # TIPOS_MOVIMENTO
+    categoria = db.Column(db.String(20))                 # CATEGORIAS ou NULL
+    cliente_id = db.Column(
+        db.Integer, db.ForeignKey("clients.id"), nullable=True, index=True
+    )  # NULL = movimento sem cliente (custo geral)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    cliente = db.relationship("Client", back_populates="transacoes")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "numero_ordem": self.numero_ordem,
+            "descricao": self.descricao,
+            "valor": self.valor,
+            "entidade_emissora": self.entidade_emissora,
+            "num_factura": self.num_factura,
+            "valor_siva": self.valor_siva,
+            "iva": self.iva,
+            "iva_pct": self.iva_pct,
+            "data": self.data.isoformat() if self.data else None,
+            "estado": self.estado,
+            "tipo_movimento": self.tipo_movimento,
+            "categoria": self.categoria,
+            "cliente_id": self.cliente_id,
+            "cliente_nome": self.cliente.name if self.cliente else None,
+            "cliente_numero": self.cliente.client_number if self.cliente else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

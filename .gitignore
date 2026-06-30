@@ -8,3 +8,7 @@ __pycache__/
 instance/
 .DS_Store
 .claude/
+# Artefactos do WSL (alternate data streams)
+*:Zone.Identifier
+# Dados financeiros reais (fonte do import único; não versionar)
+dados/
