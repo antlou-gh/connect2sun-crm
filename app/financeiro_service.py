@@ -16,7 +16,10 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter, range_boundaries
 
 from . import db
-from .models import Transacao, Client, MESES
+from .models import (
+    Transacao, Client,
+    ESTADOS, TIPOS_MOVIMENTO, CATEGORIAS, MESES,
+)
 
 SHEET_NAME = "BD Financeira 2026"
 TABELA = "Tabela2"
@@ -330,3 +333,121 @@ def gerar_export_financeiro(ano=2026):
         ws.tables[TABELA].ref = ref
 
     return wb
+
+
+# ── Criação de movimentos (regra de negócio partilhada app + /api/v1) ─────────
+# Esta é a ÚNICA fonte de verdade da regra "criar uma transação válida". Tanto o
+# endpoint humano (blueprints/financeiro.py) como a API de máquina
+# (blueprints/api_v1.py) chamam criar_transacao_from_dict.
+
+def _parse_date(value):
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _next_numero_ordem():
+    atual = db.session.query(db.func.max(Transacao.numero_ordem)).scalar()
+    return (atual or 0) + 1
+
+
+def _validar_valor_fechado(valor, permitidos, label):
+    """Devolve (valor_normalizado, erro). Vazio → None. Inválido → erro."""
+    if valor in (None, ""):
+        return None, None
+    if valor not in permitidos:
+        return None, f"{label} inválido: {valor!r}"
+    return valor, None
+
+
+def _aplicar_campos(t, body):
+    """Aplica campos do body a uma Transacao; devolve lista de erros."""
+    erros = []
+
+    if "estado" in body:
+        v, e = _validar_valor_fechado(body["estado"], ESTADOS, "Estado")
+        if e:
+            erros.append(e)
+        else:
+            t.estado = v
+    if "tipo_movimento" in body:
+        v, e = _validar_valor_fechado(body["tipo_movimento"], TIPOS_MOVIMENTO, "Tipo de movimento")
+        if e:
+            erros.append(e)
+        else:
+            t.tipo_movimento = v
+    if "categoria" in body:
+        v, e = _validar_valor_fechado(body["categoria"], CATEGORIAS, "Categoria")
+        if e:
+            erros.append(e)
+        else:
+            t.categoria = v
+
+    if "data" in body:
+        d = _parse_date(body["data"])
+        if d is None:
+            erros.append("Data inválida (esperado AAAA-MM-DD).")
+        else:
+            t.data = d
+
+    if "cliente_id" in body:
+        cid = body["cliente_id"]
+        if cid in (None, ""):
+            t.cliente_id = None
+        else:
+            try:
+                cid = int(cid)
+            except (TypeError, ValueError):
+                erros.append("cliente_id inválido.")
+                cid = None
+            if cid is not None and not db.session.get(Client, cid):
+                erros.append(f"Cliente {cid} não existe.")
+            elif cid is not None:
+                t.cliente_id = cid
+
+    for campo in ("descricao", "entidade_emissora", "num_factura"):
+        if campo in body:
+            val = body[campo]
+            setattr(t, campo, val.strip() if isinstance(val, str) and val.strip() else val or None)
+    for campo in ("valor", "valor_siva", "iva", "iva_pct"):
+        if campo in body:
+            val = body[campo]
+            if val in (None, ""):
+                setattr(t, campo, None)
+            else:
+                try:
+                    setattr(t, campo, float(val))
+                except (TypeError, ValueError):
+                    erros.append(f"{campo} inválido.")
+
+    return erros
+
+
+def criar_transacao_from_dict(body):
+    """Cria (sem commit) uma Transacao a partir de um dict validado.
+
+    Devolve (transacao, erros). Se erros não vazio, transacao é None.
+    Valida obrigatórios (descricao, valor, data), aplica/valida campos contra
+    as constantes fechadas, e atribui numero_ordem seguinte.
+    NÃO faz db.session.commit() — quem chama decide quando fazer commit.
+
+    Os erros de obrigatórios são devolvidos um a um (mesma semântica do endpoint
+    humano original, que devolvia a primeira falha); os erros de _aplicar_campos
+    vêm todos na lista. Quem chama junta-os com "; " na resposta JSON.
+    """
+    if not (body.get("descricao") or "").strip():
+        return None, ["Descrição é obrigatória."]
+    if body.get("valor") in (None, ""):
+        return None, ["Valor é obrigatório."]
+    if not body.get("data"):
+        return None, ["Data é obrigatória."]
+
+    t = Transacao(descricao="", valor=0.0, data=date.today())
+    erros = _aplicar_campos(t, body)
+    if erros:
+        return None, erros
+    t.numero_ordem = _next_numero_ordem()
+    return t, []

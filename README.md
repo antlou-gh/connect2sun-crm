@@ -74,12 +74,51 @@ connect2sun-crm/
 | `GET` | `/api/proposals/client/<id>/pdf` | Download da proposta em PDF |
 | `GET` | `/api/proposals/client/<id>/preview` | Pré-visualização HTML da proposta |
 
+## API de máquina (`/api/v1` — MCP)
+
+API para consumo por máquina (futuro servidor MCP). **Não usa a sessão de
+browser**: é autenticada por uma **chave estática** enviada no header
+`X-API-Key`, validada contra a env var `MCP_API_KEY`. Se `MCP_API_KEY` não
+estiver definida, a `/api/v1` fica **fechada** (fail-closed) e devolve `401`.
+
+Privilégio mínimo: só **criar** movimentos e **ler** (clientes + transações).
+Não há `PUT`/`DELETE` — a máquina nunca altera nem apaga.
+
+| Método | Endpoint | Descrição |
+|--------|----------|-----------|
+| `POST` | `/api/v1/transacoes` | Criar movimento (mesma validação do endpoint humano) |
+| `GET` | `/api/v1/clientes` | Listar clientes; `?nif=<nif>` filtra por NIF exato |
+| `GET` | `/api/v1/transacoes` | Consultar movimentos (`?ano&mes&tipo_movimento&categoria&estado&cliente_id&q`) |
+
+Gera a chave com:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Exemplos de `curl` (assumindo `X-API-Key: $MCP_API_KEY`):
+
+```bash
+# Criar um movimento
+curl -X POST http://localhost:5000/api/v1/transacoes \
+  -H "X-API-Key: $MCP_API_KEY" -H "Content-Type: application/json" \
+  -d '{"descricao": "Fatura FT 2026/1", "valor": 1230.0, "data": "2026-06-30",
+       "tipo_movimento": "Facturação", "estado": "Fechado"}'
+
+# Resolver NIF → cliente
+curl -H "X-API-Key: $MCP_API_KEY" "http://localhost:5000/api/v1/clientes?nif=500123456"
+
+# Consultar movimentos de 2026
+curl -H "X-API-Key: $MCP_API_KEY" "http://localhost:5000/api/v1/transacoes?ano=2026"
+```
+
 ## Variáveis de ambiente
 
 | Variável | Padrão | Descrição |
 |----------|--------|-----------|
 | `SECRET_KEY` | `dev-secret-connect2sun` | Chave secreta Flask |
 | `DATABASE_URL` | `sqlite:///connect2sun.db` | URI da base de dados |
+| `MCP_API_KEY` | _(vazio)_ | Chave da API de máquina `/api/v1` (`X-API-Key`). Vazia → `/api/v1` fechada |
 
 Cria um ficheiro `.env` na raiz para substituir os valores padrão:
 

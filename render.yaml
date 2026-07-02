@@ -16,3 +16,8 @@ services:
                                     # (ver DEPLOY.md). Dados ficam persistentes.
       - key: APP_PASSWORD
         sync: false                 # define a palavra-passe de acesso à app
+      - key: MCP_API_KEY
+        sync: false                 # chave da API de máquina /api/v1 (X-API-Key).
+                                    # Gera com:
+                                    #   python -c "import secrets; print(secrets.token_urlsafe(32))"
+                                    # Se não definida, a /api/v1 fica fechada (fail-closed).
