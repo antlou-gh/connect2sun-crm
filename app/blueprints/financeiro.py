@@ -15,6 +15,9 @@ from ..models import (
     Transacao, Client,
     ESTADOS, TIPOS_MOVIMENTO, CATEGORIAS, MESES,
 )
+# Regra de negócio de criação/aplicação de campos vive no serviço partilhado
+# (fonte única, reutilizada também pela API de máquina /api/v1).
+from ..financeiro_service import criar_transacao_from_dict, _aplicar_campos
 
 bp = Blueprint("financeiro", __name__)
 
@@ -24,31 +27,6 @@ XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 TIPOS_COM_CATEGORIA = ("Custos gerais", "Pagamentos ao Estado")
 # Tipos que deviam ter cliente (ecrã "por associar a cliente").
 TIPOS_COM_CLIENTE = ("Facturação", "Material/Serviços")
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _parse_date(value):
-    if not value:
-        return None
-    try:
-        return date.fromisoformat(value)
-    except (ValueError, TypeError):
-        return None
-
-
-def _next_numero_ordem():
-    atual = db.session.query(db.func.max(Transacao.numero_ordem)).scalar()
-    return (atual or 0) + 1
-
-
-def _validar_valor_fechado(valor, permitidos, label):
-    """Devolve (valor_normalizado, erro). Vazio → None. Inválido → erro."""
-    if valor in (None, ""):
-        return None, None
-    if valor not in permitidos:
-        return None, f"{label} inválido: {valor!r}"
-    return valor, None
 
 
 # ── Metadados (constantes + clientes) para dropdowns ──────────────────────────
@@ -108,84 +86,12 @@ def list_transacoes():
     return jsonify([t.to_dict() for t in transacoes])
 
 
-def _aplicar_campos(t, body):
-    """Aplica campos do body a uma Transacao; devolve lista de erros."""
-    erros = []
-
-    if "estado" in body:
-        v, e = _validar_valor_fechado(body["estado"], ESTADOS, "Estado")
-        if e:
-            erros.append(e)
-        else:
-            t.estado = v
-    if "tipo_movimento" in body:
-        v, e = _validar_valor_fechado(body["tipo_movimento"], TIPOS_MOVIMENTO, "Tipo de movimento")
-        if e:
-            erros.append(e)
-        else:
-            t.tipo_movimento = v
-    if "categoria" in body:
-        v, e = _validar_valor_fechado(body["categoria"], CATEGORIAS, "Categoria")
-        if e:
-            erros.append(e)
-        else:
-            t.categoria = v
-
-    if "data" in body:
-        d = _parse_date(body["data"])
-        if d is None:
-            erros.append("Data inválida (esperado AAAA-MM-DD).")
-        else:
-            t.data = d
-
-    if "cliente_id" in body:
-        cid = body["cliente_id"]
-        if cid in (None, ""):
-            t.cliente_id = None
-        else:
-            try:
-                cid = int(cid)
-            except (TypeError, ValueError):
-                erros.append("cliente_id inválido.")
-                cid = None
-            if cid is not None and not db.session.get(Client, cid):
-                erros.append(f"Cliente {cid} não existe.")
-            elif cid is not None:
-                t.cliente_id = cid
-
-    for campo in ("descricao", "entidade_emissora", "num_factura"):
-        if campo in body:
-            val = body[campo]
-            setattr(t, campo, val.strip() if isinstance(val, str) and val.strip() else val or None)
-    for campo in ("valor", "valor_siva", "iva", "iva_pct"):
-        if campo in body:
-            val = body[campo]
-            if val in (None, ""):
-                setattr(t, campo, None)
-            else:
-                try:
-                    setattr(t, campo, float(val))
-                except (TypeError, ValueError):
-                    erros.append(f"{campo} inválido.")
-
-    return erros
-
-
 @bp.post("/transacoes")
 def create_transacao():
     body = request.get_json(silent=True) or {}
-    if not (body.get("descricao") or "").strip():
-        return jsonify({"error": "Descrição é obrigatória."}), 400
-    if body.get("valor") in (None, ""):
-        return jsonify({"error": "Valor é obrigatório."}), 400
-    if not body.get("data"):
-        return jsonify({"error": "Data é obrigatória."}), 400
-
-    t = Transacao(descricao="", valor=0.0, data=date.today())
-    erros = _aplicar_campos(t, body)
+    t, erros = criar_transacao_from_dict(body)
     if erros:
         return jsonify({"error": "; ".join(erros)}), 400
-    t.numero_ordem = _next_numero_ordem()
     db.session.add(t)
     db.session.commit()
     return jsonify(t.to_dict()), 201

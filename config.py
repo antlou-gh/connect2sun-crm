@@ -39,6 +39,11 @@ class Config:
     # Define TOTP_SECRET nas env vars do Render para ativar o segundo fator.
     # Se não estiver definido, o login funciona só com password (modo dev).
     TOTP_SECRET = os.environ.get("TOTP_SECRET") or None
+    # ── API de máquina (/api/v1) ──────────────────────────────────────────────
+    # Chave estática para o servidor MCP autenticar via header X-API-Key.
+    # Gera com: python -c "import secrets; print(secrets.token_urlsafe(32))"
+    # Sem default: se não estiver definida, a /api/v1 fica fechada (fail-closed).
+    MCP_API_KEY = os.environ.get("MCP_API_KEY")
     # Cookie de sessão: HttpOnly sempre; Secure só em produção (Render usa HTTPS).
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"

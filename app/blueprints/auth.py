@@ -109,6 +109,14 @@ def logout():
 
 def require_login():
     """Bloqueia tudo exceto rotas de autenticação e ficheiros estáticos."""
+    # API de máquina (/api/v1): governada SÓ pela chave, nunca pela sessão de
+    # browser. Verificação exaustiva e prioritária — se o path é /api/v1/ mas a
+    # chave falha, devolve 401 aqui e NÃO cai na lógica de sessão humana.
+    if request.path.startswith("/api/v1/"):
+        from ..api_auth import verificar_api_key
+        if verificar_api_key(request):
+            return None
+        return jsonify({"error": "API key inválida ou em falta"}), 401
     if session.get("authed"):
         return None
     public = ("auth.login", "auth.login_page", "auth.mfa_page",
