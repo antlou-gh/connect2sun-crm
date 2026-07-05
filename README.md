@@ -86,7 +86,7 @@ Não há `PUT`/`DELETE` — a máquina nunca altera nem apaga.
 
 | Método | Endpoint | Descrição |
 |--------|----------|-----------|
-| `POST` | `/api/v1/transacoes` | Criar movimento (mesma validação do endpoint humano) |
+| `POST` | `/api/v1/transacoes` | Criar movimento (mesma validação do endpoint humano; `entidade_emissora` é obrigatória) |
 | `GET` | `/api/v1/clientes` | Listar clientes; `?nif=<nif>` filtra por NIF exato |
 | `GET` | `/api/v1/transacoes` | Consultar movimentos (`?ano&mes&tipo_movimento&categoria&estado&cliente_id&q`) |
 
@@ -99,11 +99,13 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 Exemplos de `curl` (assumindo `X-API-Key: $MCP_API_KEY`):
 
 ```bash
-# Criar um movimento
+# Criar um movimento (entidade_emissora é obrigatória; num_factura é opcional
+# mas incentivado sempre que exista documento associado)
 curl -X POST http://localhost:5000/api/v1/transacoes \
   -H "X-API-Key: $MCP_API_KEY" -H "Content-Type: application/json" \
   -d '{"descricao": "Fatura FT 2026/1", "valor": 1230.0, "data": "2026-06-30",
-       "tipo_movimento": "Facturação", "estado": "Fechado"}'
+       "tipo_movimento": "Facturação", "estado": "Fechado",
+       "entidade_emissora": "C2S", "num_factura": "FT 2026/1"}'
 
 # Resolver NIF → cliente
 curl -H "X-API-Key: $MCP_API_KEY" "http://localhost:5000/api/v1/clientes?nif=500123456"

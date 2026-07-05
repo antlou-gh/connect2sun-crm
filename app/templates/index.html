@@ -471,7 +471,7 @@
         <div class="form-group"><label>Estado</label><select name="estado"></select></div>
         <div class="form-group"><label>Categoria</label><select name="categoria"></select></div>
         <div class="form-group"><label>Cliente</label><select name="cliente_id"></select></div>
-        <div class="form-group"><label>Entidade Emissora</label><input name="entidade_emissora"></div>
+        <div class="form-group"><label>Entidade Emissora *</label><input name="entidade_emissora"></div>
         <div class="form-group"><label>Nº de Factura</label><input name="num_factura"></div>
         <div class="form-group"><label>Valor s/ IVA (€)</label><input name="valor_siva" type="number" step="0.01"></div>
         <div class="form-group"><label>IVA (€)</label><input name="iva" type="number" step="0.01"></div>
@@ -1109,6 +1109,7 @@ async function saveMovimento(){
   const data = Object.fromEntries(new FormData(form).entries());
   data.data = dmyToISO(data.data);
   if (!data.descricao || data.valor === '' || !data.data){ toast('Descrição, valor e data são obrigatórios', true); return; }
+  if (!editingMovimentoId && !(data.entidade_emissora||'').trim()){ toast('Entidade emissora é obrigatória', true); return; }
   try {
     if (editingMovimentoId){
       await apiFetch(`${API}/financeiro/transacoes/${editingMovimentoId}`, { method:'PUT', body: JSON.stringify(data) });

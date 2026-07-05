@@ -9,6 +9,7 @@ Princípios:
 """
 
 import os
+import re
 import unicodedata
 from datetime import date
 
@@ -292,6 +293,17 @@ def gerar_export_financeiro(ano=2026):
     # Para o export precisamos também do cabeçalho "Total".
     _exigir_cabecalhos(mapa, CABECALHOS_IMPORT + [CAB_TOTAL])
 
+    # O ficheiro-modelo traz um AutoFilter gravado (ex.: Estado = "Fechado") e
+    # centenas de `row_dimensions[n].hidden = True` herdados de quando esse
+    # filtro foi aplicado no Excel. Isso esconde linhas cujo Estado mudou
+    # entretanto, e lotes inteiros de linhas novas. O export não deve herdar
+    # nenhum estado de visibilidade — remove-se o filtro e força-se tudo
+    # visível.
+    if TABELA in ws.tables:
+        ws.tables[TABELA].autoFilter = None
+    for linha_dim in ws.row_dimensions.values():
+        linha_dim.hidden = False
+
     transacoes = (
         Transacao.query
         .filter(db.extract("year", Transacao.data) == ano)
@@ -299,27 +311,39 @@ def gerar_export_financeiro(ano=2026):
         .all()
     )
 
-    def escrever(linha, cabecalho, valor):
+    FORMATO_MOEDA = '#,##0.00" €"'
+    FORMATO_PCT = '0.00%'
+
+    def escrever(linha, cabecalho, valor, number_format=None):
         col = mapa[_normalizar(cabecalho)]
-        ws.cell(row=linha, column=col, value=valor)
+        cell = ws.cell(row=linha, column=col, value=valor)
+        if number_format:
+            cell.number_format = number_format
 
     linha = header_row
     for t in transacoes:
         linha += 1
+        ws.row_dimensions[linha].hidden = False
         nif = normalizar_nif(t.cliente.nif) if t.cliente else None
         mes_nome = MESES[t.data.month - 1] if t.data else None
+        # round(2) imediatamente antes de escrever: evita ruído de vírgula
+        # flutuante gravado na célula (ex.: 8945.7900000000009).
+        valor = round(t.valor, 2) if t.valor is not None else None
+        valor_siva = round(t.valor_siva, 2) if t.valor_siva is not None else None
+        iva = round(t.iva, 2) if t.iva is not None else None
+        total = round(abs(t.valor), 2) if t.valor is not None else None
         escrever(linha, CAB_NUMERO, t.numero_ordem)
         escrever(linha, CAB_DESCRICAO, t.descricao)
         escrever(linha, CAB_NIF, nif or "")
-        escrever(linha, CAB_VALOR, t.valor)
+        escrever(linha, CAB_VALOR, valor, FORMATO_MOEDA)
         escrever(linha, CAB_ENTIDADE, t.entidade_emissora)
         escrever(linha, CAB_FACTURA, t.num_factura)
-        escrever(linha, CAB_SIVA, t.valor_siva)
-        escrever(linha, CAB_IVA, t.iva)              # valor literal
-        escrever(linha, CAB_IVA_PCT, t.iva_pct)
+        escrever(linha, CAB_SIVA, valor_siva, FORMATO_MOEDA)
+        escrever(linha, CAB_IVA, iva, FORMATO_MOEDA)  # valor literal
+        escrever(linha, CAB_IVA_PCT, t.iva_pct, FORMATO_PCT)
         escrever(linha, CAB_DIA, t.data.day if t.data else None)
         escrever(linha, CAB_MES, mes_nome)           # texto português
-        escrever(linha, CAB_TOTAL, abs(t.valor) if t.valor is not None else None)  # literal, nunca fórmula
+        escrever(linha, CAB_TOTAL, total, FORMATO_MOEDA)  # literal, nunca fórmula
         escrever(linha, CAB_ESTADO, t.estado)
         escrever(linha, CAB_TIPO, t.tipo_movimento)
         # categoria NÃO é exportada (dimensão só da app; não existe na Tabela2).
@@ -437,6 +461,12 @@ def criar_transacao_from_dict(body):
     Os erros de obrigatórios são devolvidos um a um (mesma semântica do endpoint
     humano original, que devolvia a primeira falha); os erros de _aplicar_campos
     vêm todos na lista. Quem chama junta-os com "; " na resposta JSON.
+
+    `entidade_emissora` é obrigatória (à semelhança de `categoria`): sem ela,
+    o movimento não é rastreável até ao fornecedor/cliente que o emitiu, e essa
+    informação nunca mais é recuperável depois de perdida. `num_factura` fica
+    opcional (nem todo o movimento tem documento associado, ex.: transferência
+    bancária), mas incentivada.
     """
     if not (body.get("descricao") or "").strip():
         return None, ["Descrição é obrigatória."]
@@ -444,6 +474,8 @@ def criar_transacao_from_dict(body):
         return None, ["Valor é obrigatório."]
     if not body.get("data"):
         return None, ["Data é obrigatória."]
+    if not (body.get("entidade_emissora") or "").strip():
+        return None, ["Entidade emissora é obrigatória."]
 
     t = Transacao(descricao="", valor=0.0, data=date.today())
     erros = _aplicar_campos(t, body)
@@ -451,3 +483,125 @@ def criar_transacao_from_dict(body):
         return None, erros
     t.numero_ordem = _next_numero_ordem()
     return t, []
+
+
+# ── Relatório de lacunas: numero_factura / entidade_emissora em falta ────────
+# Muitos movimentos antigos têm a informação no texto livre da Descrição
+# (convenção "Pag./Rec. Inst <CÓDIGO> <Cliente> <detalhe>") mas não nos campos
+# próprios. Isto gera um relatório de sugestões extraídas/correspondidas da
+# Descrição — NUNCA escreve na BD por si só (ver `aplicar_lacunas_financeiro`).
+
+PADRAO_FACTURA = re.compile(r"\b(?:FT|FR|FS|FA|NC)\s?[\dA-Z/.-]*\d\b", re.IGNORECASE)
+
+
+def _vazio(valor):
+    return valor is None or str(valor).strip() == ""
+
+
+def _extrair_numero_factura(descricao):
+    """Procura um padrão tipo FT1234 na Descrição. None se não encontrar."""
+    m = PADRAO_FACTURA.search(descricao or "")
+    return m.group(0).strip() if m else None
+
+
+def _entidades_correspondentes(descricao, entidades_conhecidas):
+    """Nomes conhecidos (conjunto fechado) que aparecem no texto da Descrição.
+
+    `entidades_conhecidas` deve vir ordenada dos nomes mais longos para os mais
+    curtos, para não perder um nome composto (ex.: "Aurensol, Lda") a favor de
+    um prefixo comum a outro.
+    """
+    texto = descricao or ""
+    return [e for e in entidades_conhecidas if e and e in texto]
+
+
+def relatorio_lacunas_financeiro():
+    """Identifica Transacao com numero_factura/entidade_emissora em falta e
+    sugere valores extraídos/correspondidos da Descrição. Read-only.
+
+    Devolve uma lista de dicts (um por movimento em falta) com:
+    numero_ordem, descricao, num_factura_atual, num_factura_sugerido,
+    entidade_atual, entidade_sugerida, entidade_candidatos (só quando
+    ambíguo), estado ('ok' | 'sem correspondência' | 'ambíguo').
+    """
+    entidades_conhecidas = sorted(
+        {
+            e for (e,) in db.session.query(Transacao.entidade_emissora)
+            .filter(Transacao.entidade_emissora.isnot(None), Transacao.entidade_emissora != "")
+            .distinct().all()
+        },
+        key=len, reverse=True,
+    )
+
+    transacoes = (
+        Transacao.query
+        .filter(
+            db.or_(
+                Transacao.num_factura.is_(None), Transacao.num_factura == "",
+                Transacao.entidade_emissora.is_(None), Transacao.entidade_emissora == "",
+            )
+        )
+        .order_by(Transacao.numero_ordem.asc())
+        .all()
+    )
+
+    linhas = []
+    for t in transacoes:
+        falta_factura = _vazio(t.num_factura)
+        falta_entidade = _vazio(t.entidade_emissora)
+
+        factura_sugerida = _extrair_numero_factura(t.descricao) if falta_factura else None
+
+        candidatos_entidade = []
+        entidade_sugerida = None
+        if falta_entidade:
+            candidatos_entidade = _entidades_correspondentes(t.descricao, entidades_conhecidas)
+            if len(candidatos_entidade) == 1:
+                entidade_sugerida = candidatos_entidade[0]
+
+        if falta_entidade and len(candidatos_entidade) > 1:
+            estado = "ambíguo"
+        elif (falta_factura and not factura_sugerida) or (falta_entidade and not entidade_sugerida):
+            estado = "sem correspondência"
+        else:
+            estado = "ok"
+
+        linhas.append({
+            "_id": t.id,
+            "numero_ordem": t.numero_ordem,
+            "descricao": t.descricao,
+            "num_factura_atual": t.num_factura or "",
+            "num_factura_sugerido": factura_sugerida or "",
+            "entidade_atual": t.entidade_emissora or "",
+            "entidade_sugerida": entidade_sugerida or "",
+            "entidade_candidatos": ", ".join(candidatos_entidade) if len(candidatos_entidade) > 1 else "",
+            "estado": estado,
+        })
+    return linhas
+
+
+def aplicar_lacunas_financeiro(linhas):
+    """Escreve na BD só as linhas com estado == 'ok' (sugestão única e sem
+    ambiguidade). Linhas 'sem correspondência' e 'ambíguo' nunca são tocadas.
+
+    Recebe a lista devolvida por `relatorio_lacunas_financeiro`. Faz commit.
+    Devolve o nº de movimentos atualizados.
+    """
+    aplicados = 0
+    for linha in linhas:
+        if linha["estado"] != "ok":
+            continue
+        t = db.session.get(Transacao, linha["_id"])
+        if t is None:
+            continue
+        alterado = False
+        if linha["num_factura_sugerido"] and _vazio(t.num_factura):
+            t.num_factura = linha["num_factura_sugerido"]
+            alterado = True
+        if linha["entidade_sugerida"] and _vazio(t.entidade_emissora):
+            t.entidade_emissora = linha["entidade_sugerida"]
+            alterado = True
+        if alterado:
+            aplicados += 1
+    db.session.commit()
+    return aplicados

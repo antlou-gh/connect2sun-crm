@@ -35,6 +35,59 @@ def register_cli(app):
         wb.save(ficheiro)
         click.echo(f"Exportado para {ficheiro} (ano {ano}).")
 
+    @app.cli.command("financeiro-lacunas")
+    @click.option("--csv", "csv_path", default=None,
+                  help="Grava o relatório neste caminho .csv (por omissão só imprime no terminal).")
+    @click.option("--apply", "aplicar", is_flag=True,
+                  help="Escreve na BD as sugestões com estado 'ok'. Nunca escreve 'ambíguo'/'sem correspondência'.")
+    def financeiro_lacunas_cmd(csv_path, aplicar):
+        """Relatório de numero_factura/entidade_emissora em falta (sugestões da Descrição)."""
+        from .financeiro_service import relatorio_lacunas_financeiro, aplicar_lacunas_financeiro
+
+        linhas = relatorio_lacunas_financeiro()
+        if not linhas:
+            click.echo("Nenhum movimento com Nº de factura/Entidade emissora em falta.")
+            return
+
+        campos = ["numero_ordem", "descricao", "num_factura_atual", "num_factura_sugerido",
+                  "entidade_atual", "entidade_sugerida", "entidade_candidatos", "estado"]
+
+        if csv_path:
+            import csv as csv_mod
+            with open(csv_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv_mod.DictWriter(f, fieldnames=campos)
+                writer.writeheader()
+                for linha in linhas:
+                    writer.writerow({k: linha[k] for k in campos})
+            click.echo(f"Relatório gravado em {csv_path} ({len(linhas)} movimentos).")
+        else:
+            click.echo(f"{'Ordem':>6}  {'Estado':<20}  {'Nº factura (atual → sugerido)':<32}  "
+                       f"{'Entidade (atual → sugerida/candidatos)':<45}  Descrição")
+            click.echo("-" * 150)
+            for linha in linhas:
+                factura = f"{linha['num_factura_atual'] or '—'} → {linha['num_factura_sugerido'] or '—'}"
+                entidade_sugestao = linha["entidade_sugerida"] or linha["entidade_candidatos"] or "—"
+                entidade = f"{linha['entidade_atual'] or '—'} → {entidade_sugestao}"
+                click.echo(
+                    f"{linha['numero_ordem']:>6}  {linha['estado']:<20}  {factura:<32}  "
+                    f"{entidade:<45}  {linha['descricao'][:40]}"
+                )
+
+        resumo = {}
+        for linha in linhas:
+            resumo[linha["estado"]] = resumo.get(linha["estado"], 0) + 1
+        click.echo("-" * 40)
+        click.echo(f"Total: {len(linhas)}  |  " + "  ".join(f"{k}: {v}" for k, v in resumo.items()))
+
+        if aplicar:
+            aplicados = aplicar_lacunas_financeiro(linhas)
+            click.echo(f"Aplicadas {aplicados} atualização(ões) à BD (só linhas 'ok').")
+        elif resumo.get("ok"):
+            click.echo(
+                f"{resumo['ok']} linha(s) com sugestão pronta a aplicar. "
+                "Corre novamente com --apply para escrever na BD."
+            )
+
     @app.cli.command("clientes-nif")
     @click.option(
         "--todos",
