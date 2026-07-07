@@ -273,6 +273,7 @@
           <select id="mov-tipo" onchange="loadMovimentos()"><option value="">Todos os tipos</option></select>
           <select id="mov-categoria" onchange="loadMovimentos()"><option value="">Todas as categorias</option><option value="__none__">— Sem categoria —</option></select>
           <select id="mov-estado" onchange="loadMovimentos()"><option value="">Todos os estados</option></select>
+          <select id="mov-entidade-emissora" onchange="loadMovimentos()"><option value="">Todas as entidades</option><option value="__none__">— Sem entidade emissora —</option></select>
           <select id="mov-cliente" onchange="loadMovimentos()"><option value="">Todos os clientes</option></select>
         </div>
         <div class="table-wrap">
@@ -1022,6 +1023,7 @@ function populateFinFilters(){
   document.getElementById('mov-tipo').insertAdjacentHTML('beforeend', finMeta.tipos_movimento.map(t=>`<option>${t}</option>`).join(''));
   document.getElementById('mov-categoria').insertAdjacentHTML('beforeend', finMeta.categorias.map(c=>`<option>${c}</option>`).join(''));
   document.getElementById('mov-estado').insertAdjacentHTML('beforeend', finMeta.estados.map(e=>`<option>${e}</option>`).join(''));
+  document.getElementById('mov-entidade-emissora').insertAdjacentHTML('beforeend', finMeta.entidades_emissoras.map(e=>`<option>${escapeHtml(e)}</option>`).join(''));
   document.getElementById('mov-cliente').insertAdjacentHTML('beforeend', finMeta.clientes.map(c=>`<option value="${c.id}">${escapeHtml((c.client_number!=null?'#'+c.client_number+' ':'')+c.name)}</option>`).join(''));
   const anoAtual = new Date().getFullYear();
   const anos = [];
@@ -1067,6 +1069,7 @@ async function loadMovimentos(){
   const tipo = document.getElementById('mov-tipo').value; if (tipo) p.set('tipo_movimento', tipo);
   const cat = document.getElementById('mov-categoria').value; if (cat) p.set('categoria', cat);
   const est = document.getElementById('mov-estado').value; if (est) p.set('estado', est);
+  const ent = document.getElementById('mov-entidade-emissora').value; if (ent) p.set('entidade_emissora', ent);
   const cli = document.getElementById('mov-cliente').value; if (cli) p.set('cliente_id', cli);
   const rows = await apiFetch(`${API}/financeiro/transacoes?`+p.toString());
   const tbody = document.querySelector('#mov-table tbody');

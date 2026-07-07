@@ -38,11 +38,21 @@ def meta():
         .with_entities(Client.id, Client.client_number, Client.name)
         .all()
     )
+    entidades_emissoras = [
+        e for (e,) in (
+            db.session.query(Transacao.entidade_emissora)
+            .filter(Transacao.entidade_emissora.isnot(None))
+            .distinct()
+            .order_by(Transacao.entidade_emissora.asc())
+            .all()
+        )
+    ]
     return jsonify({
         "estados": ESTADOS,
         "tipos_movimento": TIPOS_MOVIMENTO,
         "categorias": CATEGORIAS,
         "meses": MESES,
+        "entidades_emissoras": entidades_emissoras,
         "clientes": [
             {"id": c.id, "client_number": c.client_number, "name": c.name}
             for c in clientes
@@ -60,6 +70,7 @@ def list_transacoes():
     tipo = request.args.get("tipo_movimento")
     categoria = request.args.get("categoria")
     estado = request.args.get("estado")
+    entidade_emissora = request.args.get("entidade_emissora")
     cliente_id = request.args.get("cliente_id", type=int)
     q = (request.args.get("q") or "").strip()
 
@@ -75,6 +86,10 @@ def list_transacoes():
         query = query.filter(Transacao.categoria == categoria)
     if estado:
         query = query.filter(Transacao.estado == estado)
+    if entidade_emissora == "__none__":
+        query = query.filter(Transacao.entidade_emissora.is_(None))
+    elif entidade_emissora:
+        query = query.filter(Transacao.entidade_emissora == entidade_emissora)
     if cliente_id:
         query = query.filter(Transacao.cliente_id == cliente_id)
     if q:
