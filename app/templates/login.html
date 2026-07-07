@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Entrar · Connect2Sun CRM</title>
+  <title>Entrar · C2S Gestão</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/c2s-symbol.png') }}">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -38,8 +38,8 @@
 <body>
   <div class="card">
     <img src="{{ url_for('static', filename='img/c2s-symbol.png') }}" alt="Connect2Sun">
-    <div class="name">Connect2<span>Sun</span></div>
-    <div class="sub">CRM · Gestão de Leads e Propostas</div>
+    <div class="name">C2S <span>Gestão</span></div>
+    <div class="sub">Gestão de Leads&Propostas&Finanças</div>
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
     <form method="post" action="{{ url_for('auth.login') }}">
       <div style="text-align:left;display:flex;flex-direction:column;gap:6px;">
