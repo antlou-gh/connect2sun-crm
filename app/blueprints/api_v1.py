@@ -49,13 +49,15 @@ def listar_clientes():
 @bp.get("/transacoes")
 def listar_transacoes():
     """Consulta movimentos (read-only). Espelha os filtros do list_transacoes
-    humano: ano, mes, tipo_movimento, categoria, estado, cliente_id, q."""
+    humano: ano, mes, tipo_movimento, categoria, estado, entidade_emissora,
+    cliente_id, q."""
     query = Transacao.query
     ano = request.args.get("ano", type=int)
     mes = request.args.get("mes", type=int)
     tipo = request.args.get("tipo_movimento")
     categoria = request.args.get("categoria")
     estado = request.args.get("estado")
+    entidade_emissora = request.args.get("entidade_emissora")
     cliente_id = request.args.get("cliente_id", type=int)
     q = (request.args.get("q") or "").strip()
 
@@ -71,6 +73,10 @@ def listar_transacoes():
         query = query.filter(Transacao.categoria == categoria)
     if estado:
         query = query.filter(Transacao.estado == estado)
+    if entidade_emissora == "__none__":
+        query = query.filter(Transacao.entidade_emissora.is_(None))
+    elif entidade_emissora:
+        query = query.filter(Transacao.entidade_emissora == entidade_emissora)
     if cliente_id:
         query = query.filter(Transacao.cliente_id == cliente_id)
     if q:

@@ -88,7 +88,7 @@ Não há `PUT`/`DELETE` — a máquina nunca altera nem apaga.
 |--------|----------|-----------|
 | `POST` | `/api/v1/transacoes` | Criar movimento (mesma validação do endpoint humano; `entidade_emissora` é obrigatória) |
 | `GET` | `/api/v1/clientes` | Listar clientes; `?nif=<nif>` filtra por NIF exato |
-| `GET` | `/api/v1/transacoes` | Consultar movimentos (`?ano&mes&tipo_movimento&categoria&estado&cliente_id&q`) |
+| `GET` | `/api/v1/transacoes` | Consultar movimentos (`?ano&mes&tipo_movimento&categoria&estado&entidade_emissora&cliente_id&q`; `categoria`/`entidade_emissora` aceitam `__none__` para filtrar valor por preencher) |
 
 Gera a chave com:
 
