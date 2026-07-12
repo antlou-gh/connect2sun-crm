@@ -12,3 +12,4 @@ instance/
 *:Zone.Identifier
 # Dados financeiros reais (fonte do import único; não versionar)
 dados/
+.pytest_cache/

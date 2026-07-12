@@ -172,10 +172,15 @@ def dashboard_pl():
         query = query.filter(extract("month", Transacao.data) == mes)
     rows = query.all()
 
-    receita = sum(t.valor for t in rows
-                  if t.tipo_movimento in ("Facturação", "Nota de crédito"))
+    # NC negativa (venda anulada) abate à receita; NC positiva (de fornecedor)
+    # abate aos custos diretos — nunca se somam cegamente por sinal.
+    receita = sum(t.valor for t in rows if t.tipo_movimento == "Facturação")
+    receita += sum(t.valor for t in rows
+                   if t.tipo_movimento == "Nota de crédito" and t.valor < 0)
     custos_diretos = sum(abs(t.valor) for t in rows
                          if t.tipo_movimento == "Material/Serviços")
+    custos_diretos -= sum(t.valor for t in rows
+                          if t.tipo_movimento == "Nota de crédito" and t.valor > 0)
 
     estrutura_rows = [t for t in rows
                       if t.tipo_movimento in ("Custos gerais", "Pagamentos ao Estado")]
@@ -207,8 +212,18 @@ def _margem_cliente(cliente_id, ano=None):
     if ano:
         query = query.filter(extract("year", Transacao.data) == ano)
     rows = query.all()
-    faturacao = sum(t.valor for t in rows if t.tipo_movimento == "Facturação")
-    custos = sum(abs(t.valor) for t in rows if t.tipo_movimento == "Material/Serviços")
+    faturacao = 0.0
+    custos = 0.0
+    for t in rows:
+        if t.tipo_movimento == "Facturação":
+            faturacao += t.valor
+        elif t.tipo_movimento == "Nota de crédito":
+            if t.valor < 0:
+                faturacao += t.valor   # NC de venda: abate à facturação
+            else:
+                custos -= t.valor      # NC de fornecedor: abate aos custos
+        elif t.tipo_movimento == "Material/Serviços":
+            custos += abs(t.valor)
     return round(faturacao, 2), round(custos, 2), round(faturacao - custos, 2)
 
 
@@ -231,6 +246,11 @@ def dashboard_margem_cliente():
         })
         if t.tipo_movimento == "Facturação":
             a["faturacao"] += t.valor
+        elif t.tipo_movimento == "Nota de crédito":
+            if t.valor < 0:
+                a["faturacao"] += t.valor   # NC de venda: abate à facturação
+            else:
+                a["custos"] -= t.valor      # NC de fornecedor: abate aos custos
         elif t.tipo_movimento == "Material/Serviços":
             a["custos"] += abs(t.valor)
 
