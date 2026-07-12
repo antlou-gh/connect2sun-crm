@@ -278,7 +278,7 @@
         </div>
         <div class="table-wrap">
           <table id="mov-table">
-            <thead><tr><th>Nº</th><th>Data</th><th>Descrição</th><th>Tipo</th><th>Categoria</th><th>Cliente</th><th>Estado</th><th style="text-align:right;">Valor</th><th>Ações</th></tr></thead>
+            <thead><tr><th>Nº</th><th>Data</th><th>Descrição</th><th>Nº factura</th><th>Tipo</th><th>Categoria</th><th>Cliente</th><th>Estado</th><th style="text-align:right;">Valor</th><th>Ações</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -1073,12 +1073,13 @@ async function loadMovimentos(){
   const cli = document.getElementById('mov-cliente').value; if (cli) p.set('cliente_id', cli);
   const rows = await apiFetch(`${API}/financeiro/transacoes?`+p.toString());
   const tbody = document.querySelector('#mov-table tbody');
-  if (!rows.length){ tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);">Sem movimentos.</td></tr>`; return; }
+  if (!rows.length){ tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--muted);">Sem movimentos.</td></tr>`; return; }
   tbody.innerHTML = rows.map(t=>`
     <tr>
       <td>${t.numero_ordem ?? '—'}</td>
       <td>${fmtDate(t.data)}</td>
       <td>${escapeHtml(t.descricao)}</td>
+      <td>${t.num_factura ? escapeHtml(t.num_factura) : '—'}</td>
       <td><span class="pill">${t.tipo_movimento || '—'}</span></td>
       <td>${t.categoria ? `<span class="pill">${t.categoria}</span>` : '—'}</td>
       <td>${t.cliente_nome ? `${t.cliente_numero!=null?'#'+t.cliente_numero+' ':''}${escapeHtml(t.cliente_nome)}` : '—'}</td>
