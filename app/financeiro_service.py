@@ -498,6 +498,33 @@ def _vazio(valor):
     return valor is None or str(valor).strip() == ""
 
 
+# Movimentos que legitimamente não têm número de factura — nesses, o
+# `num_factura` vazio não é lacuna e não deve aparecer no relatório:
+# - Pagamentos ao Estado (TSU, IRS/IRC, retenções): pagos por guia/DUC;
+# - Vencimentos: transferências, sem documento com numeração;
+# - Via Verde: fica em branco por decisão (Jul/2026);
+# - IMPIC: taxa paga por DUC.
+# A auditoria à `entidade_emissora` NÃO é afetada por estas isenções.
+ISENTOS_FACTURA_TIPOS = {"Pagamentos ao Estado"}
+ISENTOS_FACTURA_PREFIXOS = ("Pag. Vencimento",)
+ISENTOS_FACTURA_ENTIDADES = {"Via Verde", "IMPIC"}
+
+# Vencimentos ficam também fora da auditoria à entidade_emissora (decisão
+# Jul/2026: os movimentos "Pag. Vencimento" ficam sem entidade).
+ISENTOS_ENTIDADE_PREFIXOS = ("Pag. Vencimento",)
+
+
+def _isento_num_factura(t):
+    """True se o movimento estiver isento da auditoria ao num_factura."""
+    if (t.tipo_movimento or "").strip() in ISENTOS_FACTURA_TIPOS:
+        return True
+    if (t.descricao or "").startswith(ISENTOS_FACTURA_PREFIXOS):
+        return True
+    if (t.entidade_emissora or "").strip() in ISENTOS_FACTURA_ENTIDADES:
+        return True
+    return False
+
+
 def _extrair_numero_factura(descricao):
     """Procura um padrão tipo FT1234 na Descrição. None se não encontrar."""
     m = PADRAO_FACTURA.search(descricao or "")
@@ -518,6 +545,11 @@ def _entidades_correspondentes(descricao, entidades_conhecidas):
 def relatorio_lacunas_financeiro():
     """Identifica Transacao com numero_factura/entidade_emissora em falta e
     sugere valores extraídos/correspondidos da Descrição. Read-only.
+
+    O num_factura só é auditado em movimentos que devem ter factura — ver
+    `_isento_num_factura` (Pagamentos ao Estado, vencimentos, Via Verde,
+    IMPIC ficam de fora). A entidade_emissora é auditada em todos excepto
+    nos vencimentos (ISENTOS_ENTIDADE_PREFIXOS).
 
     Devolve uma lista de dicts (um por movimento em falta) com:
     numero_ordem, descricao, num_factura_atual, num_factura_sugerido,
@@ -547,8 +579,15 @@ def relatorio_lacunas_financeiro():
 
     linhas = []
     for t in transacoes:
-        falta_factura = _vazio(t.num_factura)
-        falta_entidade = _vazio(t.entidade_emissora)
+        falta_factura = _vazio(t.num_factura) and not _isento_num_factura(t)
+        falta_entidade = _vazio(t.entidade_emissora) and not (
+            t.descricao or ""
+        ).startswith(ISENTOS_ENTIDADE_PREFIXOS)
+
+        if not falta_factura and not falta_entidade:
+            # O que "faltava" está isento — não é lacuna, não entra no
+            # relatório.
+            continue
 
         factura_sugerida = _extrair_numero_factura(t.descricao) if falta_factura else None
 
