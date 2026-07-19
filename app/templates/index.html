@@ -1204,6 +1204,9 @@ const barValueLabelPlugin = {
   id: 'barValueLabel',
   afterDatasetsDraw(chart) {
     const { ctx } = chart;
+    // Meses sem qualquer movimento não mostram labels (evita "0 € 0 € 0 €"
+    // repetido nos meses futuros). Flags passadas via options pelo render.
+    const vazios = chart.options.mesesSemMovimentos || [];
     ctx.save();
     ctx.fillStyle = chartTextColor();
     ctx.font = '10px sans-serif';
@@ -1214,6 +1217,7 @@ const barValueLabelPlugin = {
       meta.data.forEach((bar, index) => {
         const value = dataset.data[index];
         if (value === null || value === undefined) return;
+        if (vazios[index]) return;
         const pos = bar.tooltipPosition();
         ctx.fillText(fmtEurSemDecimais(value), pos.x, pos.y + (value >= 0 ? -6 : 14));
       });
@@ -1251,6 +1255,7 @@ function renderMensalChart(d){
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      mesesSemMovimentos: d.meses.map(m => m.num_movimentos === 0),
       plugins: {
         legend: { position: 'bottom', labels: { color: chartTextColor(), boxWidth: 12, padding: 12, font: { size: 11 } } },
         tooltip: { callbacks: { label: ctx => {
