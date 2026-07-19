@@ -252,6 +252,7 @@
     <div class="subnav">
       <button class="active" data-fintab="movimentos" onclick="showFinTab('movimentos')">Movimentos</button>
       <button data-fintab="pl" onclick="showFinTab('pl')">P&amp;L</button>
+      <button data-fintab="mensal" onclick="showFinTab('mensal')">Dashboard Mensal</button>
       <button data-fintab="margem" onclick="showFinTab('margem')">Margem por Cliente</button>
       <button data-fintab="categorizar" onclick="showFinTab('categorizar')">Por Categorizar <span id="badge-categorizar" class="pill warn" style="display:none"></span></button>
       <button data-fintab="associar" onclick="showFinTab('associar')">Por Associar <span id="badge-associar" class="pill warn" style="display:none"></span></button>
@@ -305,6 +306,21 @@
             <h3>Custos de Estrutura por Categoria</h3>
             <div class="chart-wrap"><canvas id="chart-estrutura"></canvas></div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard mensal -->
+    <div id="fin-mensal" class="fin-view">
+      <div class="card">
+        <div class="card-header">
+          <h2>Dashboard Mensal <span style="font-weight:400;font-size:.75rem;color:var(--muted);">— valores s/ IVA</span></h2>
+          <select id="mensal-ano" onchange="loadMensal()"></select>
+        </div>
+        <div class="stats" id="mensal-stats"></div>
+        <div class="chart-card">
+          <h3>Facturação, Custos e Resultado por Mês</h3>
+          <div class="chart-wrap"><canvas id="chart-mensal"></canvas></div>
         </div>
       </div>
     </div>
@@ -977,12 +993,16 @@ let finMeta = null;
 let finFiltersReady = false;
 let currentFinTab = 'movimentos';
 let editingMovimentoId = null;
-let finChartPL = null, finChartEstrutura = null;
+let finChartPL = null, finChartEstrutura = null, finChartMensal = null;
 
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtEur(v){
   if (v === null || v === undefined) return '—';
   return Number(v).toLocaleString('pt-PT', { style:'currency', currency:'EUR' });
+}
+function fmtEurSemDecimais(v){
+  if (v === null || v === undefined) return '—';
+  return Number(v).toLocaleString('pt-PT', { style:'currency', currency:'EUR', maximumFractionDigits:0 });
 }
 function moneyCell(v){
   const cls = Number(v) < 0 ? 'neg' : 'pos';
@@ -1030,6 +1050,7 @@ function populateFinFilters(){
   for (let y=Math.max(anoAtual+1, 2026); y>=2024; y--) anos.push(y);
   const anoOpts = anos.map(y=>`<option value="${y}"${y===2026?' selected':''}>${y}</option>`).join('');
   document.getElementById('pl-ano').innerHTML = anoOpts;
+  document.getElementById('mensal-ano').innerHTML = anoOpts;
   document.getElementById('margem-ano').innerHTML = `<option value="">Todos os anos</option>` + anoOpts;
 }
 
@@ -1040,6 +1061,7 @@ function showFinTab(tab){
   document.querySelectorAll('.subnav button').forEach(b=>b.classList.toggle('active', b.dataset.fintab===tab));
   if (tab==='movimentos') loadMovimentos();
   if (tab==='pl') loadPL();
+  if (tab==='mensal') loadMensal();
   if (tab==='margem') loadMargem();
   if (tab==='categorizar') loadCategorizar();
   if (tab==='associar') loadAssociar();
@@ -1172,6 +1194,79 @@ function renderPLCharts(d){
     options:{ responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ position:'bottom', labels:{color:chartTextColor(), boxWidth:12, padding:12, font:{size:11}} },
         tooltip:{ callbacks:{ label:ctx=>` ${ctx.label}: ${fmtEur(ctx.raw)}` } } } }
+  });
+}
+
+// ── Dashboard mensal ──
+// Plugin inline (sem dependência externa) para mostrar o valor de cada
+// barra — reutiliza a instância de Chart.js já carregada na página.
+const barValueLabelPlugin = {
+  id: 'barValueLabel',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    ctx.save();
+    ctx.fillStyle = chartTextColor();
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    chart.data.datasets.forEach((dataset, i) => {
+      const meta = chart.getDatasetMeta(i);
+      if (meta.hidden) return;
+      meta.data.forEach((bar, index) => {
+        const value = dataset.data[index];
+        if (value === null || value === undefined) return;
+        const pos = bar.tooltipPosition();
+        ctx.fillText(fmtEurSemDecimais(value), pos.x, pos.y + (value >= 0 ? -6 : 14));
+      });
+    });
+    ctx.restore();
+  },
+};
+
+async function loadMensal(){
+  const p = new URLSearchParams();
+  const ano = document.getElementById('mensal-ano').value; if (ano) p.set('ano', ano);
+  const d = await apiFetch(`${API}/financeiro/dashboard/mensal?`+p.toString());
+  const t = d.totais;
+  document.getElementById('mensal-stats').innerHTML = `
+    <div class="stat-card"><div class="value" style="color:var(--green);font-size:1.35rem;">${fmtEur(t.faturacao)}</div><div class="label">Facturação</div></div>
+    <div class="stat-card"><div class="value" style="color:var(--danger);font-size:1.35rem;">${fmtEur(t.custos)}</div><div class="label">Custos</div><div style="font-size:.75rem;color:var(--muted);margin-top:4px;">Diretos ${fmtEur(t.custos_diretos)} · Estrutura ${fmtEur(t.custos_estrutura)}</div></div>
+    <div class="stat-card"><div class="value" style="color:${t.resultado>=0?'var(--green)':'var(--danger)'};font-size:1.35rem;">${fmtEur(t.resultado)}</div><div class="label">Resultado</div></div>
+    <div class="stat-card"><div class="value" style="font-size:1.35rem;">${t.num_movimentos}</div><div class="label">Movimentos</div></div>
+  `;
+  renderMensalChart(d);
+}
+
+function renderMensalChart(d){
+  if (finChartMensal) finChartMensal.destroy();
+  const labels = d.meses.map(m => m.mes_nome.slice(0, 3));
+  finChartMensal = new Chart(document.getElementById('chart-mensal'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Facturação', data: d.meses.map(m => m.faturacao), backgroundColor: '#16a34a', borderRadius: 4, borderSkipped: false },
+        { label: 'Custos', data: d.meses.map(m => m.custos), backgroundColor: '#ef4444', borderRadius: 4, borderSkipped: false },
+        { label: 'Resultado', data: d.meses.map(m => m.resultado), backgroundColor: '#3b82f6', borderRadius: 4, borderSkipped: false },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: chartTextColor(), boxWidth: 12, padding: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => {
+          if (ctx.dataset.label === 'Custos') {
+            const mes = d.meses[ctx.dataIndex];
+            return [` Custos: ${fmtEur(ctx.raw)}`, ` · Diretos: ${fmtEur(mes.custos_diretos)}`, ` · Estrutura: ${fmtEur(mes.custos_estrutura)}`];
+          }
+          return ` ${ctx.dataset.label}: ${fmtEur(ctx.raw)}`;
+        } } },
+      },
+      scales: {
+        x: { ticks: { color: chartTextColor(), font: { size: 11 } }, grid: { display: false } },
+        y: { ticks: { color: chartTextColor(), font: { size: 11 } }, grid: { color: chartGridColor() }, beginAtZero: true },
+      },
+    },
+    plugins: [barValueLabelPlugin],
   });
 }
 

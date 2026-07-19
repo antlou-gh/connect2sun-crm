@@ -182,24 +182,17 @@ def por_associar():
 
 # ── Dashboards ────────────────────────────────────────────────────────────────
 
-@bp.get("/dashboard/pl")
-def dashboard_pl():
-    """P&L geral, com filtro opcional de mês/ano."""
-    ano = request.args.get("ano", type=int) or date.today().year
-    mes = request.args.get("mes", type=int)
+def _calcular_pl(rows):
+    """Totais de P&L (base sem IVA) para um conjunto de movimentos.
 
-    query = Transacao.query.filter(extract("year", Transacao.data) == ano)
-    if mes:
-        query = query.filter(extract("month", Transacao.data) == mes)
-    rows = query.all()
-
-    # Base SEM IVA em toda a demonstração (ver _siva). A direção da NC
-    # continua a decidir-se pelo sinal de `valor`:
-    # NC negativa (venda anulada) abate à receita; NC positiva (de fornecedor)
-    # abate aos custos diretos — nunca se somam cegamente por sinal.
-    receita = sum(_siva(t) for t in rows if t.tipo_movimento == "Facturação")
-    receita += sum(_siva(t) for t in rows
-                   if t.tipo_movimento == "Nota de crédito" and t.valor < 0)
+    Partilhado entre `dashboard_pl` e `dashboard_mensal` — fonte única da
+    regra de negócio (ver _siva para a base sem IVA e a direção da NC:
+    NC negativa (venda anulada) abate à faturação; NC positiva (de
+    fornecedor) abate aos custos diretos).
+    """
+    faturacao = sum(_siva(t) for t in rows if t.tipo_movimento == "Facturação")
+    faturacao += sum(_siva(t) for t in rows
+                      if t.tipo_movimento == "Nota de crédito" and t.valor < 0)
     custos_diretos = sum(abs(_siva(t)) for t in rows
                          if t.tipo_movimento == "Material/Serviços")
     custos_diretos -= sum(_siva(t) for t in rows
@@ -214,18 +207,87 @@ def dashboard_pl():
         chave = t.categoria or "Sem categoria"
         breakdown[chave] = breakdown.get(chave, 0.0) + abs(_siva(t))
 
-    resultado = receita - custos_diretos - custos_estrutura
+    custos = custos_diretos + custos_estrutura
+    resultado = faturacao - custos
 
+    return {
+        "faturacao": faturacao,
+        "custos_diretos": custos_diretos,
+        "custos_estrutura": custos_estrutura,
+        "custos": custos,
+        "resultado": resultado,
+        "num_movimentos": len(rows),
+        "breakdown_estrutura": breakdown,
+    }
+
+
+@bp.get("/dashboard/pl")
+def dashboard_pl():
+    """P&L geral, com filtro opcional de mês/ano."""
+    ano = request.args.get("ano", type=int) or date.today().year
+    mes = request.args.get("mes", type=int)
+
+    query = Transacao.query.filter(extract("year", Transacao.data) == ano)
+    if mes:
+        query = query.filter(extract("month", Transacao.data) == mes)
+    rows = query.all()
+
+    c = _calcular_pl(rows)
     return jsonify({
         "ano": ano,
         "mes": mes,
-        "receita": round(receita, 2),
-        "custos_diretos": round(custos_diretos, 2),
-        "custos_estrutura": round(custos_estrutura, 2),
+        "receita": round(c["faturacao"], 2),
+        "custos_diretos": round(c["custos_diretos"], 2),
+        "custos_estrutura": round(c["custos_estrutura"], 2),
         "breakdown_estrutura": {k: round(v, 2) for k, v in
-                                sorted(breakdown.items(), key=lambda x: -x[1])},
-        "resultado": round(resultado, 2),
-        "num_movimentos": len(rows),
+                                sorted(c["breakdown_estrutura"].items(), key=lambda x: -x[1])},
+        "resultado": round(c["resultado"], 2),
+        "num_movimentos": c["num_movimentos"],
+    })
+
+
+@bp.get("/dashboard/mensal")
+def dashboard_mensal():
+    """Dashboard mensal (faturação/custos/resultado por mês), base sem IVA.
+
+    Devolve sempre os 12 meses (com zeros quando não há movimentos), para o
+    gráfico de barras agrupadas do frontend.
+    """
+    ano = request.args.get("ano", type=int) or date.today().year
+
+    rows = Transacao.query.filter(extract("year", Transacao.data) == ano).all()
+    por_mes = {m: [] for m in range(1, 13)}
+    for t in rows:
+        por_mes[t.data.month].append(t)
+
+    meses = []
+    for m in range(1, 13):
+        c = _calcular_pl(por_mes[m])
+        meses.append({
+            "mes": m,
+            "mes_nome": MESES[m - 1],
+            "faturacao": round(c["faturacao"], 2),
+            "custos_diretos": round(c["custos_diretos"], 2),
+            "custos_estrutura": round(c["custos_estrutura"], 2),
+            "custos": round(c["custos"], 2),
+            "resultado": round(c["resultado"], 2),
+            "num_movimentos": c["num_movimentos"],
+        })
+
+    # Totais do ano == _calcular_pl sobre todos os movimentos (soma é aditiva
+    # por partição de meses; evita reacumular campo a campo).
+    t = _calcular_pl(rows)
+    return jsonify({
+        "ano": ano,
+        "meses": meses,
+        "totais": {
+            "faturacao": round(t["faturacao"], 2),
+            "custos_diretos": round(t["custos_diretos"], 2),
+            "custos_estrutura": round(t["custos_estrutura"], 2),
+            "custos": round(t["custos"], 2),
+            "resultado": round(t["resultado"], 2),
+            "num_movimentos": t["num_movimentos"],
+        },
     })
 
 
