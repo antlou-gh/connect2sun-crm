@@ -29,6 +29,27 @@ TIPOS_COM_CATEGORIA = ("Custos gerais", "Pagamentos ao Estado")
 TIPOS_COM_CLIENTE = ("Facturação", "Material/Serviços")
 
 
+def _siva(t):
+    """Valor SEM IVA, com o sinal do movimento — base de todos os P&L.
+
+    O IVA não é receita nem custo da empresa (é entregue ao/recuperado do
+    Estado), por isso receita e custos calculam-se sempre sobre a base
+    sem IVA.
+
+    Convenções dos dados:
+    - `valor_siva` é uma magnitude (na folha, "S/ IVA" é sempre positivo:
+      o IVA é calculado como ABS(Valor total) − S/IVA). O sinal do movimento
+      vive SEMPRE em `valor`. Usa-se abs() por robustez, caso algum registo
+      tenha entrado já com sinal via API.
+    - Movimentos sem `valor_siva` (ex.: Pagamentos ao Estado, vencimentos —
+      sem IVA) usam o próprio `valor` como fallback.
+    """
+    if t.valor_siva is None:
+        return t.valor or 0.0
+    mag = abs(t.valor_siva)
+    return mag if (t.valor or 0.0) >= 0 else -mag
+
+
 # ── Metadados (constantes + clientes) para dropdowns ──────────────────────────
 
 @bp.get("/meta")
@@ -172,24 +193,26 @@ def dashboard_pl():
         query = query.filter(extract("month", Transacao.data) == mes)
     rows = query.all()
 
+    # Base SEM IVA em toda a demonstração (ver _siva). A direção da NC
+    # continua a decidir-se pelo sinal de `valor`:
     # NC negativa (venda anulada) abate à receita; NC positiva (de fornecedor)
     # abate aos custos diretos — nunca se somam cegamente por sinal.
-    receita = sum(t.valor for t in rows if t.tipo_movimento == "Facturação")
-    receita += sum(t.valor for t in rows
+    receita = sum(_siva(t) for t in rows if t.tipo_movimento == "Facturação")
+    receita += sum(_siva(t) for t in rows
                    if t.tipo_movimento == "Nota de crédito" and t.valor < 0)
-    custos_diretos = sum(abs(t.valor) for t in rows
+    custos_diretos = sum(abs(_siva(t)) for t in rows
                          if t.tipo_movimento == "Material/Serviços")
-    custos_diretos -= sum(t.valor for t in rows
+    custos_diretos -= sum(_siva(t) for t in rows
                           if t.tipo_movimento == "Nota de crédito" and t.valor > 0)
 
     estrutura_rows = [t for t in rows
                       if t.tipo_movimento in ("Custos gerais", "Pagamentos ao Estado")]
-    custos_estrutura = sum(abs(t.valor) for t in estrutura_rows)
+    custos_estrutura = sum(abs(_siva(t)) for t in estrutura_rows)
 
     breakdown = {}
     for t in estrutura_rows:
         chave = t.categoria or "Sem categoria"
-        breakdown[chave] = breakdown.get(chave, 0.0) + abs(t.valor)
+        breakdown[chave] = breakdown.get(chave, 0.0) + abs(_siva(t))
 
     resultado = receita - custos_diretos - custos_estrutura
 
@@ -214,16 +237,17 @@ def _margem_cliente(cliente_id, ano=None):
     rows = query.all()
     faturacao = 0.0
     custos = 0.0
+    # Base SEM IVA (ver _siva); direção da NC decidida pelo sinal de `valor`.
     for t in rows:
         if t.tipo_movimento == "Facturação":
-            faturacao += t.valor
+            faturacao += _siva(t)
         elif t.tipo_movimento == "Nota de crédito":
             if t.valor < 0:
-                faturacao += t.valor   # NC de venda: abate à facturação
+                faturacao += _siva(t)  # NC de venda: abate à facturação
             else:
-                custos -= t.valor      # NC de fornecedor: abate aos custos
+                custos -= _siva(t)     # NC de fornecedor: abate aos custos
         elif t.tipo_movimento == "Material/Serviços":
-            custos += abs(t.valor)
+            custos += abs(_siva(t))
     return round(faturacao, 2), round(custos, 2), round(faturacao - custos, 2)
 
 
@@ -244,15 +268,16 @@ def dashboard_margem_cliente():
             "cliente_nome": t.cliente.name if t.cliente else None,
             "cliente_numero": t.cliente.client_number if t.cliente else None,
         })
+        # Base SEM IVA (ver _siva); direção da NC pelo sinal de `valor`.
         if t.tipo_movimento == "Facturação":
-            a["faturacao"] += t.valor
+            a["faturacao"] += _siva(t)
         elif t.tipo_movimento == "Nota de crédito":
             if t.valor < 0:
-                a["faturacao"] += t.valor   # NC de venda: abate à facturação
+                a["faturacao"] += _siva(t)  # NC de venda: abate à facturação
             else:
-                a["custos"] -= t.valor      # NC de fornecedor: abate aos custos
+                a["custos"] -= _siva(t)     # NC de fornecedor: abate aos custos
         elif t.tipo_movimento == "Material/Serviços":
-            a["custos"] += abs(t.valor)
+            a["custos"] += abs(_siva(t))
 
     resultado = []
     for cid, a in agg.items():
