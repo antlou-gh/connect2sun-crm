@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>C2S Gestão — Financeiro</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/c2s-symbol.png') }}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --sun: #f59e0b; --sun-dark: #d97706; --green: #16a34a;
+      --bg: #f8fafc; --card: #ffffff; --border: #e2e8f0;
+      --text: #1e293b; --muted: #64748b; --danger: #dc2626;
+      --nav-bg: #ffffff; --nav-border: #e2e8f0; --input-bg: #ffffff;
+      --hover-row: #f1f5f9; --th-bg: #f8fafc;
+    }
+    [data-theme="dark"] {
+      --bg: #0f172a; --card: #1e293b; --border: #334155;
+      --text: #e2e8f0; --muted: #94a3b8;
+      --nav-bg: #0b1220; --nav-border: #334155; --input-bg: #0f172a;
+      --hover-row: #263348; --th-bg: #1e293b;
+    }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); transition: background .2s, color .2s; }
+
+    nav { background: var(--nav-bg); color: var(--text); padding: 0 24px; display: flex; align-items: center; gap: 14px; height: 76px; border-bottom: 1px solid var(--nav-border); transition: background .2s, border-color .2s; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand img { height: 48px; width: auto; display: block; }
+    .brand .wordmark { line-height: 1.15; }
+    .brand .wordmark .name { font-size: 1.4rem; font-weight: 700; color: var(--text); }
+    .brand .wordmark .name span { color: var(--sun); }
+    .brand .wordmark .sub { font-size: .95rem; color: var(--muted); letter-spacing: .01em; margin-top: 2px; font-weight: 500; }
+    #dark-toggle { margin-left: auto; background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer; padding: 5px 10px; border-radius: 6px; font-size: .85rem; transition: background .15s; }
+    #dark-toggle:hover { background: var(--hover-row); }
+    #logout-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer; padding: 7px 16px; border-radius: 6px; font-size: 1rem; font-weight: 600; text-decoration: none; transition: background .15s; }
+    #logout-btn:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+    main { max-width: 1600px; margin: 28px auto; padding: 0 28px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin-bottom: 20px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .card-header h2 { font-size: 1.05rem; font-weight: 600; }
+
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border: none; border-radius: 7px; cursor: pointer; font-size: .875rem; font-weight: 500; transition: opacity .15s; }
+    .btn:hover { opacity: .85; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+    th { background: var(--th-bg); padding: 12px 14px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); color: var(--muted); text-transform: uppercase; font-size: .78rem; letter-spacing: .04em; }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+
+    .filters { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    .filters input { flex: 1; min-width: 180px; }
+    .filters select { min-width: 140px; }
+    input, select {
+      border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px;
+      font-size: .9rem; background: var(--input-bg); color: var(--text);
+      transition: border-color .15s, background .2s, color .2s;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--sun); }
+
+    .money { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+    .money.pos { color: var(--green); }
+    .money.neg { color: var(--danger); }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .72rem; font-weight: 600; background: var(--th-bg); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
+
+    #toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 8px; font-size: .875rem; z-index: 200; transition: opacity .3s; opacity: 0; pointer-events: none; }
+    #toast.show { opacity: 1; }
+
+    @media (max-width: 600px) {
+      .filters { flex-direction: column; align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="brand">
+    <img src="{{ url_for('static', filename='img/c2s-symbol.png') }}" alt="Connect2Sun">
+    <div class="wordmark">
+      <div class="name">C2S <span>Gestão</span></div>
+      <div class="sub">Financeiro — acesso restrito</div>
+    </div>
+  </div>
+  <button id="dark-toggle" onclick="toggleDark()" title="Alternar tema">☀️</button>
+  <a id="logout-btn" href="/logout" title="Sair">Sair</a>
+</nav>
+
+<main>
+  <div class="card">
+    <div class="card-header">
+      <h2>Movimentos</h2>
+      <button class="btn btn-ghost" onclick="exportFinanceiro()">↓ Exportar para Excel</button>
+    </div>
+    <div class="filters">
+      <input type="text" id="mov-q" placeholder="Pesquisar descrição…" oninput="loadMovimentos()">
+      <select id="mov-ano" onchange="loadMovimentos()"></select>
+      <select id="mov-mes" onchange="loadMovimentos()"><option value="">Todos os meses</option></select>
+      <select id="mov-tipo" onchange="loadMovimentos()"><option value="">Todos os tipos</option></select>
+      <select id="mov-categoria" onchange="loadMovimentos()"><option value="">Todas as categorias</option><option value="__none__">— Sem categoria —</option></select>
+      <select id="mov-estado" onchange="loadMovimentos()"><option value="">Todos os estados</option></select>
+      <select id="mov-entidade-emissora" onchange="loadMovimentos()"><option value="">Todas as entidades</option><option value="__none__">— Sem entidade emissora —</option></select>
+      <select id="mov-cliente" onchange="loadMovimentos()"><option value="">Todos os clientes</option></select>
+    </div>
+    <div class="table-wrap">
+      <table id="mov-table">
+        <thead><tr><th>Nº</th><th>Data</th><th>Descrição</th><th>Nº factura</th><th>Tipo</th><th>Categoria</th><th>Cliente</th><th>Estado</th><th style="text-align:right;">Valor</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const API = '/api';
+
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = isError ? '#dc2626' : '#1e293b';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+async function apiFetch(url, opts = {}) {
+  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (res.status === 401) { window.location = '/login'; throw new Error('Sessão expirada'); }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || res.statusText);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+function escapeHtml(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-PT');
+}
+function fmtEur(v){
+  if (v === null || v === undefined) return '—';
+  return Number(v).toLocaleString('pt-PT', { style:'currency', currency:'EUR' });
+}
+function moneyCell(v){
+  const cls = Number(v) < 0 ? 'neg' : 'pos';
+  return `<td style="text-align:right;"><span class="money ${cls}">${fmtEur(v)}</span></td>`;
+}
+
+// ── Dark mode ─────────────────────────────────────────────────────────────────
+function toggleDark() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('dark-toggle').textContent = isDark ? '☀️' : '🌙';
+  localStorage.setItem('theme', isDark ? 'light' : 'dark');
+}
+(function initTheme() {
+  const saved = localStorage.getItem('theme') ||
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', saved);
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('dark-toggle').textContent = saved === 'dark' ? '🌙' : '☀️';
+  });
+})();
+
+// ── Financeiro (só leitura) ─────────────────────────────────────────────────
+let finMeta = null;
+
+async function ensureFinMeta(){
+  if (!finMeta) finMeta = await apiFetch(`${API}/financeiro/meta`);
+  return finMeta;
+}
+
+function populateFinFilters(){
+  const mesOpts = finMeta.meses.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  document.getElementById('mov-mes').insertAdjacentHTML('beforeend', mesOpts);
+  document.getElementById('mov-tipo').insertAdjacentHTML('beforeend', finMeta.tipos_movimento.map(t=>`<option>${t}</option>`).join(''));
+  document.getElementById('mov-categoria').insertAdjacentHTML('beforeend', finMeta.categorias.map(c=>`<option>${c}</option>`).join(''));
+  document.getElementById('mov-estado').insertAdjacentHTML('beforeend', finMeta.estados.map(e=>`<option>${e}</option>`).join(''));
+  document.getElementById('mov-entidade-emissora').insertAdjacentHTML('beforeend', finMeta.entidades_emissoras.map(e=>`<option>${escapeHtml(e)}</option>`).join(''));
+  document.getElementById('mov-cliente').insertAdjacentHTML('beforeend', finMeta.clientes.map(c=>`<option value="${c.id}">${escapeHtml((c.client_number!=null?'#'+c.client_number+' ':'')+c.name)}</option>`).join(''));
+  const anoAtual = new Date().getFullYear();
+  const anos = [];
+  for (let y=anoAtual+1; y>=2024; y--) anos.push(y);
+  document.getElementById('mov-ano').innerHTML = `<option value="">Todos os anos</option>` +
+    anos.map(y=>`<option value="${y}">${y}</option>`).join('');
+}
+
+async function loadMovimentos(){
+  const p = new URLSearchParams();
+  const q = document.getElementById('mov-q').value.trim(); if (q) p.set('q', q);
+  const ano = document.getElementById('mov-ano').value; if (ano) p.set('ano', ano);
+  const mes = document.getElementById('mov-mes').value; if (mes) p.set('mes', mes);
+  const tipo = document.getElementById('mov-tipo').value; if (tipo) p.set('tipo_movimento', tipo);
+  const cat = document.getElementById('mov-categoria').value; if (cat) p.set('categoria', cat);
+  const est = document.getElementById('mov-estado').value; if (est) p.set('estado', est);
+  const ent = document.getElementById('mov-entidade-emissora').value; if (ent) p.set('entidade_emissora', ent);
+  const cli = document.getElementById('mov-cliente').value; if (cli) p.set('cliente_id', cli);
+  const rows = await apiFetch(`${API}/financeiro/transacoes?`+p.toString());
+  const tbody = document.querySelector('#mov-table tbody');
+  if (!rows.length){ tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);">Sem movimentos.</td></tr>`; return; }
+  tbody.innerHTML = rows.map(t=>`
+    <tr>
+      <td>${t.numero_ordem ?? '—'}</td>
+      <td>${fmtDate(t.data)}</td>
+      <td>${escapeHtml(t.descricao)}</td>
+      <td>${t.num_factura ? escapeHtml(t.num_factura) : '—'}</td>
+      <td><span class="pill">${t.tipo_movimento || '—'}</span></td>
+      <td>${t.categoria ? `<span class="pill">${t.categoria}</span>` : '—'}</td>
+      <td>${t.cliente_nome ? `${t.cliente_numero!=null?'#'+t.cliente_numero+' ':''}${escapeHtml(t.cliente_nome)}` : '—'}</td>
+      <td>${t.estado || '—'}</td>
+      ${moneyCell(t.valor)}
+    </tr>`).join('');
+}
+
+function exportFinanceiro(){
+  const ano = document.getElementById('mov-ano').value || new Date().getFullYear();
+  window.location.href = `${API}/financeiro/exportar?ano=${ano}`;
+}
+
+(async function init(){
+  try {
+    await ensureFinMeta();
+    populateFinFilters();
+    await loadMovimentos();
+  } catch (e) { toast(e.message, true); }
+})();
+</script>
+
+</body>
+</html>

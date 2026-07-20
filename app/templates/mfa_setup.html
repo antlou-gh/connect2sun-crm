@@ -47,7 +47,7 @@
       <div class="steps">
         <strong>1.</strong> Abre a tua app autenticadora (Google Authenticator, Aegis, etc.)<br>
         <strong>2.</strong> Lê o QR code abaixo, ou introduz o segredo manualmente.<br>
-        <strong>3.</strong> Define <code>TOTP_SECRET</code> nas variáveis de ambiente do Render com o valor indicado.
+        <strong>3.</strong> Define <code>{{ var_name }}</code> nas variáveis de ambiente do Render com o valor indicado.
       </div>
       <div class="qr-wrap">
         <img src="data:image/png;base64,{{ qr_data }}" alt="QR Code MFA">

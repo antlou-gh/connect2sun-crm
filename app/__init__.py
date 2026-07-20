@@ -8,6 +8,7 @@ db = SQLAlchemy()
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    _check_distinct_passwords(app)
 
     db.init_app(app)
 
@@ -56,6 +57,22 @@ def create_app(config_class=Config):
         # _migrate_proposals_to_documents(app)
 
     return app
+
+
+def _check_distinct_passwords(app):
+    """Recusa o arranque se admin e contabilista partilharem a password.
+
+    Com a mesma password os dois perfis ficam indistinguíveis no login (o
+    match_admin/match_contab de auth.py resolveria sempre para o mesmo lado),
+    o que quebraria a whitelist de acesso da contabilista.
+    """
+    app_password = app.config.get("APP_PASSWORD")
+    contab_password = app.config.get("CONTAB_PASSWORD")
+    if app_password and contab_password and app_password == contab_password:
+        raise RuntimeError(
+            "APP_PASSWORD e CONTAB_PASSWORD não podem ser iguais — "
+            "os perfis admin e contabilista ficariam indistinguíveis."
+        )
 
 
 def _add_column_if_missing(app, table, column, col_type):

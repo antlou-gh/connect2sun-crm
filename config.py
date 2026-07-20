@@ -39,6 +39,11 @@ class Config:
     # Define TOTP_SECRET nas env vars do Render para ativar o segundo fator.
     # Se não estiver definido, o login funciona só com password (modo dev).
     TOTP_SECRET = os.environ.get("TOTP_SECRET") or None
+    # Acesso restrito da contabilista (módulo financeiro, só leitura + export).
+    # Sem defaults: se não estiverem definidas, o login dela fica indisponível
+    # (fail-closed) em vez de cair silenciosamente num valor previsível.
+    CONTAB_PASSWORD = os.environ.get("CONTAB_PASSWORD") or None
+    CONTAB_TOTP_SECRET = os.environ.get("CONTAB_TOTP_SECRET") or None
     # ── API de máquina (/api/v1) ──────────────────────────────────────────────
     # Chave estática para o servidor MCP autenticar via header X-API-Key.
     # Gera com: python -c "import secrets; print(secrets.token_urlsafe(32))"

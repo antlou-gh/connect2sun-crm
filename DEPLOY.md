@@ -59,6 +59,8 @@ Podes "Adicionar ao ecrã principal" para ficar como atalho/app.
 | `SECRET_KEY` | gerada automaticamente pelo `render.yaml` |
 | `DATABASE_URL` | connection string do Neon (Postgres) — obrigatória em produção |
 | `APP_PASSWORD` | palavra-passe de acesso à app (página de login) — define no Render |
+| `CONTAB_PASSWORD` | palavra-passe da contabilista (acesso restrito ao financeiro) — define no Render, sem default |
+| `CONTAB_TOTP_SECRET` | segredo TOTP da contabilista, distinto do `TOTP_SECRET` do admin — define no Render, sem default |
 | `PORT` | fornecida pelo Render; o Dockerfile já a usa |
 
 ## Autenticação
@@ -69,6 +71,15 @@ topo termina a sessão. A sessão dura 7 dias (cookie HttpOnly + Secure em HTTPS
 
 > Em local, se não definires `APP_PASSWORD`, a password é `connect2sun`.
 > **Em produção define sempre um valor forte** em Render → serviço → Environment.
+
+### Acesso restrito da contabilista
+A contabilista tem um login próprio (`CONTAB_PASSWORD` + `CONTAB_TOTP_SECRET`),
+sem tabela `User` — mantém a mesma filosofia de credenciais por variável de
+ambiente. Ao contrário do admin, o MFA dela é **sempre obrigatório**: se
+`CONTAB_TOTP_SECRET` não estiver definido, o login dela falha (nunca há
+fallback sem MFA). O acesso dela é limitado ao módulo financeiro em modo
+leitura + export (ver `require_login` em `app/blueprints/auth.py`). Para
+testar localmente, exporta as duas variáveis antes de correr a app.
 
 O `config.py` aceita `postgres://`, `postgresql://` ou
 `postgresql+psycopg://` e normaliza para o driver psycopg3 automaticamente.

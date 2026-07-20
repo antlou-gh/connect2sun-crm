@@ -121,6 +121,10 @@ curl -H "X-API-Key: $MCP_API_KEY" "http://localhost:5000/api/v1/transacoes?ano=2
 | `SECRET_KEY` | `dev-secret-connect2sun` | Chave secreta Flask |
 | `DATABASE_URL` | `sqlite:///connect2sun.db` | URI da base de dados |
 | `MCP_API_KEY` | _(vazio)_ | Chave da API de máquina `/api/v1` (`X-API-Key`). Vazia → `/api/v1` fechada |
+| `APP_PASSWORD` | `connect2sun` | Palavra-passe de acesso à app (admin) |
+| `TOTP_SECRET` | _(vazio)_ | Segredo TOTP do admin. Vazio → login sem MFA (modo dev) |
+| `CONTAB_PASSWORD` | _(vazio)_ | Palavra-passe da contabilista (acesso restrito ao financeiro). Sem default |
+| `CONTAB_TOTP_SECRET` | _(vazio)_ | Segredo TOTP da contabilista, distinto do `TOTP_SECRET`. Sem default — sem ele o login dela fica bloqueado |
 
 Cria um ficheiro `.env` na raiz para substituir os valores padrão:
 
