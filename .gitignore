@@ -13,3 +13,5 @@ instance/
 # Dados financeiros reais (fonte do import único; não versionar)
 dados/
 .pytest_cache/
+.venv/
+app/uploads/
