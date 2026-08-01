@@ -258,7 +258,7 @@ def importar_financeiro(caminho_xlsx, ano=2026):
         if cliente_id is None:
             sem_cliente += 1
 
-        def texto(cabecalho):
+        def texto(row, cabecalho):
             v = ler(row, cabecalho)
             return str(v).strip() if v is not None and str(v).strip() != "" else None
 
@@ -266,14 +266,14 @@ def importar_financeiro(caminho_xlsx, ano=2026):
             numero_ordem=numero,
             descricao=str(descricao).strip(),
             valor=valor,
-            entidade_emissora=texto(CAB_ENTIDADE),
-            num_factura=texto(CAB_FACTURA),
+            entidade_emissora=texto(row, CAB_ENTIDADE),
+            num_factura=texto(row, CAB_FACTURA),
             valor_siva=valor_siva,
             iva=iva,
             iva_pct=iva_pct,
             data=data,
-            estado=texto(CAB_ESTADO),
-            tipo_movimento=texto(CAB_TIPO),
+            estado=texto(row, CAB_ESTADO),
+            tipo_movimento=texto(row, CAB_TIPO),
             categoria=None,  # sempre NULL na importação
             cliente_id=cliente_id,
         )
@@ -307,10 +307,10 @@ def gerar_export_financeiro(ano=2026):
 
     wb = load_workbook(MODELO_PATH)  # ler fresco a cada chamada (não mutar partilhado)
     ws = _selecionar_folha(wb)
-    min_col, header_row, max_col, max_row = _limites_tabela(ws)
+    min_col, header_row, max_col, _max_row = _limites_tabela(ws)
     mapa = _mapa_cabecalhos(ws, header_row, min_col, max_col)
     # Para o export precisamos também do cabeçalho "Total".
-    _exigir_cabecalhos(mapa, CABECALHOS_IMPORT + [CAB_TOTAL])
+    _exigir_cabecalhos(mapa, [*CABECALHOS_IMPORT, CAB_TOTAL])
 
     # O ficheiro-modelo traz um AutoFilter gravado (ex.: Estado = "Fechado") e
     # centenas de `row_dimensions[n].hidden = True` herdados de quando esse
@@ -538,9 +538,7 @@ def _isento_num_factura(t):
         return True
     if (t.descricao or "").startswith(ISENTOS_FACTURA_PREFIXOS):
         return True
-    if (t.entidade_emissora or "").strip() in ISENTOS_FACTURA_ENTIDADES:
-        return True
-    return False
+    return (t.entidade_emissora or "").strip() in ISENTOS_FACTURA_ENTIDADES
 
 
 def _extrair_numero_factura(descricao):

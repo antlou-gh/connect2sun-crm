@@ -1,5 +1,6 @@
 import os
 from datetime import timedelta
+from typing import ClassVar
 
 from dotenv import load_dotenv
 
@@ -30,7 +31,7 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # pool_pre_ping evita erros de ligação fechada em Postgres serverless (Neon).
-    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+    SQLALCHEMY_ENGINE_OPTIONS: ClassVar[dict] = {"pool_pre_ping": True}
 
     # ── Autenticação ──────────────────────────────────────────────────────────
     # Palavra-passe única partilhada. Em produção define APP_PASSWORD no Render;

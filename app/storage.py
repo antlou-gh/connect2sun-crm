@@ -10,6 +10,7 @@ Opcional:
     R2_ENDPOINT  (caso contrário derivado do account id)
 """
 
+import contextlib
 import os
 
 from flask import Response, current_app, send_from_directory
@@ -65,10 +66,8 @@ def delete(key):
     if not key:
         return
     if _r2_enabled():
-        try:
+        with contextlib.suppress(Exception):
             _client().delete_object(Bucket=_bucket(), Key=key)
-        except Exception:
-            pass
     else:
         path = os.path.join(_local_folder(), key)
         if os.path.exists(path):
@@ -88,8 +87,7 @@ def serve(key, download_name=None, as_attachment=False, mimetype="application/pd
             return None
 
         def generate():
-            for chunk in obj["Body"].iter_chunks(chunk_size=8192):
-                yield chunk
+            yield from obj["Body"].iter_chunks(chunk_size=8192)
 
         resp = Response(generate(), mimetype=mimetype)
         if obj.get("ContentLength") is not None:

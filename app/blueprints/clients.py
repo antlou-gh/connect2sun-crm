@@ -115,9 +115,12 @@ def update_client(client_id):
     client = db.get_or_404(Client, client_id)
     body = request.get_json(silent=True) or {}
 
-    if "email" in body and body["email"] != client.email:
-        if Client.query.filter_by(email=body["email"]).first():
-            return jsonify({"error": "Email already registered"}), 409
+    if (
+        "email" in body
+        and body["email"] != client.email
+        and Client.query.filter_by(email=body["email"]).first()
+    ):
+        return jsonify({"error": "Email already registered"}), 409
 
     if "client_number" in body and body["client_number"] not in (None, ""):
         try:
@@ -253,7 +256,7 @@ def import_csv():
     delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
 
     try:
-        lines = [l for l in text.splitlines() if l.strip()]
+        lines = [linha for linha in text.splitlines() if linha.strip()]
         reader = csv.DictReader(lines, delimiter=delimiter)
         rows = list(reader)
     except Exception as e:
