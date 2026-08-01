@@ -1,18 +1,35 @@
-from datetime import datetime, timezone
-from . import db
+from datetime import UTC, datetime
 
+from . import db
 
 # ── Valores fechados do módulo financeiro ─────────────────────────────────────
 # Usamos String + listas de constantes validadas na aplicação (NÃO ENUM nativo
 # do Postgres: acrescentar valores a um enum mais tarde é doloroso).
 ESTADOS = ["Fechado", "Falta receber", "Falta pagar", "Pag. Parcial"]
-TIPOS_MOVIMENTO = ["Custos gerais", "Facturação", "Material/Serviços",
-                   "Nota de crédito", "Pagamentos ao Estado"]
+TIPOS_MOVIMENTO = [
+    "Custos gerais",
+    "Facturação",
+    "Material/Serviços",
+    "Nota de crédito",
+    "Pagamentos ao Estado",
+]
 CATEGORIAS = ["Estrutura", "Viaturas", "Marketing", "Seguros", "Royalties"]
 
 # Meses em português — usado pela importação (texto→nº) e pela exportação (nº→texto)
-MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-         "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+MESES = [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+]
 
 
 class Client(db.Model):
@@ -36,21 +53,27 @@ class Client(db.Model):
     # DESCONTINUADO (jun. 2026): substituído por ClientDocument. Coluna mantida
     # vazia para evitar migração destrutiva de schema; já não é lida nem escrita.
     proposal_path = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     updated_at = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     installation = db.relationship(
         "Installation", back_populates="client", uselist=False, cascade="all, delete-orphan"
     )
     interactions = db.relationship(
-        "Interaction", back_populates="client", cascade="all, delete-orphan", order_by="Interaction.created_at.desc()"
+        "Interaction",
+        back_populates="client",
+        cascade="all, delete-orphan",
+        order_by="Interaction.created_at.desc()",
     )
     documents = db.relationship(
-        "ClientDocument", back_populates="client", cascade="all, delete-orphan", order_by="ClientDocument.uploaded_at.asc()"
+        "ClientDocument",
+        back_populates="client",
+        cascade="all, delete-orphan",
+        order_by="ClientDocument.uploaded_at.asc()",
     )
     # ORM apenas (não altera colunas do Client) — facilita a margem por cliente.
     # Sem cascade: apagar um cliente não deve apagar os movimentos financeiros;
@@ -84,7 +107,7 @@ class Installation(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False, unique=True)
-    power_kwp = db.Column(db.Float)           # total power in kWp
+    power_kwp = db.Column(db.Float)  # total power in kWp
     num_modules = db.Column(db.Integer)
     module_model = db.Column(db.String(120))  # e.g. "Jinko 415W"
     inverter_model = db.Column(db.String(120))
@@ -92,16 +115,16 @@ class Installation(db.Model):
     battery_model = db.Column(db.String(120))
     battery_capacity_kwh = db.Column(db.Float)
     installation_date = db.Column(db.Date)
-    roof_type = db.Column(db.String(60))       # tiles, flat, ground
-    orientation = db.Column(db.String(30))     # south, east-west, etc.
+    roof_type = db.Column(db.String(60))  # tiles, flat, ground
+    orientation = db.Column(db.String(30))  # south, east-west, etc.
     tilt_degrees = db.Column(db.Float)
     estimated_annual_kwh = db.Column(db.Float)
     total_price = db.Column(db.Float)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     updated_at = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     client = db.relationship("Client", back_populates="installation")
@@ -117,7 +140,9 @@ class Installation(db.Model):
             "inverter_power_kw": self.inverter_power_kw,
             "battery_model": self.battery_model,
             "battery_capacity_kwh": self.battery_capacity_kwh,
-            "installation_date": self.installation_date.isoformat() if self.installation_date else None,
+            "installation_date": self.installation_date.isoformat()
+            if self.installation_date
+            else None,
             "roof_type": self.roof_type,
             "orientation": self.orientation,
             "tilt_degrees": self.tilt_degrees,
@@ -133,12 +158,14 @@ class Interaction(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
-    interaction_type = db.Column(db.String(40), nullable=False)  # call, email, visit, whatsapp, meeting
+    interaction_type = db.Column(
+        db.String(40), nullable=False
+    )  # call, email, visit, whatsapp, meeting
     summary = db.Column(db.Text, nullable=False)
     outcome = db.Column(db.String(120))
     next_action = db.Column(db.String(255))
     next_action_date = db.Column(db.Date)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
 
     client = db.relationship("Client", back_populates="interactions")
 
@@ -150,7 +177,9 @@ class Interaction(db.Model):
             "summary": self.summary,
             "outcome": self.outcome,
             "next_action": self.next_action,
-            "next_action_date": self.next_action_date.isoformat() if self.next_action_date else None,
+            "next_action_date": self.next_action_date.isoformat()
+            if self.next_action_date
+            else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -160,10 +189,10 @@ class ClientDocument(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
-    original_name = db.Column(db.String(255), nullable=False)   # nome original do ficheiro
-    stored_name = db.Column(db.String(255), nullable=False)     # nome guardado em disco
-    label = db.Column(db.String(120))                           # descrição opcional
-    uploaded_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    original_name = db.Column(db.String(255), nullable=False)  # nome original do ficheiro
+    stored_name = db.Column(db.String(255), nullable=False)  # nome guardado em disco
+    label = db.Column(db.String(120))  # descrição opcional
+    uploaded_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
 
     client = db.relationship("Client", back_populates="documents")
 
@@ -183,29 +212,30 @@ class Transacao(db.Model):
     Valores fechados (`estado`, `tipo_movimento`, `categoria`) são String
     validados na aplicação contra ESTADOS / TIPOS_MOVIMENTO / CATEGORIAS.
     """
+
     __tablename__ = "transacoes"
 
     id = db.Column(db.Integer, primary_key=True)
     numero_ordem = db.Column(db.Integer, unique=True, index=True)  # "Nº de ordem" do Excel
     descricao = db.Column(db.Text, nullable=False)
-    valor = db.Column(db.Float, nullable=False)          # com sinal: -custo / +receita
+    valor = db.Column(db.Float, nullable=False)  # com sinal: -custo / +receita
     entidade_emissora = db.Column(db.String(120))
     num_factura = db.Column(db.String(60))
-    valor_siva = db.Column(db.Float)                     # valor sem IVA
-    iva = db.Column(db.Float)                            # montante de IVA
-    iva_pct = db.Column(db.Float)                        # ex.: 0.23
+    valor_siva = db.Column(db.Float)  # valor sem IVA
+    iva = db.Column(db.Float)  # montante de IVA
+    iva_pct = db.Column(db.Float)  # ex.: 0.23
     data = db.Column(db.Date, nullable=False, index=True)  # consolida Dia + Mês + ano
-    estado = db.Column(db.String(20))                    # ESTADOS
-    tipo_movimento = db.Column(db.String(30))            # TIPOS_MOVIMENTO
-    categoria = db.Column(db.String(20))                 # CATEGORIAS ou NULL
+    estado = db.Column(db.String(20))  # ESTADOS
+    tipo_movimento = db.Column(db.String(30))  # TIPOS_MOVIMENTO
+    categoria = db.Column(db.String(20))  # CATEGORIAS ou NULL
     cliente_id = db.Column(
         db.Integer, db.ForeignKey("clients.id"), nullable=True, index=True
     )  # NULL = movimento sem cliente (custo geral)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
     updated_at = db.Column(
         db.DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     cliente = db.relationship("Client", back_populates="transacoes")

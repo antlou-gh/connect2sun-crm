@@ -1,5 +1,7 @@
 from datetime import date
+
 from flask import Blueprint, jsonify, request
+
 from .. import db
 from ..models import Client, Interaction
 
@@ -60,7 +62,9 @@ def update_interaction(interaction_id):
 
     if "interaction_type" in body:
         if body["interaction_type"] not in VALID_TYPES:
-            return jsonify({"error": f"interaction_type must be one of: {', '.join(VALID_TYPES)}"}), 400
+            return jsonify(
+                {"error": f"interaction_type must be one of: {', '.join(VALID_TYPES)}"}
+            ), 400
         interaction.interaction_type = body["interaction_type"]
 
     for field in ("summary", "outcome", "next_action"):

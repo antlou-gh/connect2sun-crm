@@ -1,0 +1,33 @@
+target-version = "py312"
+line-length = 100
+
+exclude = [".venv", "migrations/versions", "__pycache__"]
+
+[lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "C4",   # comprehensions
+    "RUF",  # regras do próprio ruff
+]
+ignore = [
+    "E501",  # comprimento de linha - o formatter trata disso
+    "B008",   # chamadas em defaults: comum em Flask
+    "RUF001", # unicode ambíguo — o código tem texto em português
+    "RUF002",
+    "RUF003",
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["S101", "B011"]
+"migrate.py" = ["E402"]
+
+[lint.isort]
+known-first-party = ["app", "config"]
+
+[format]
+quote-style = "double"

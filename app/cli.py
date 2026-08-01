@@ -8,11 +8,16 @@ def register_cli(app):
 
     @app.cli.command("importar-financeiro")
     @click.argument("caminho_xlsx")
-    @click.option("--ano", default=2026, show_default=True,
-                  help="Ano a atribuir às datas (Dia + Mês da folha).")
+    @click.option(
+        "--ano",
+        default=2026,
+        show_default=True,
+        help="Ano a atribuir às datas (Dia + Mês da folha).",
+    )
     def importar_financeiro_cmd(caminho_xlsx, ano):
         """Importa os movimentos do Excel para a tabela `transacoes` (idempotente)."""
         from .financeiro_service import importar_financeiro
+
         resumo = importar_financeiro(caminho_xlsx, ano=ano)
         click.echo("── Importação financeira ──────────────────────────────")
         click.echo(f"  Importados ........... {resumo['importados']}")
@@ -31,29 +36,47 @@ def register_cli(app):
     def exportar_financeiro_cmd(ficheiro, ano):
         """Gera um snapshot Excel das transações no formato da folha do contabilista."""
         from .financeiro_service import gerar_export_financeiro
+
         wb = gerar_export_financeiro(ano=ano)
         wb.save(ficheiro)
         click.echo(f"Exportado para {ficheiro} (ano {ano}).")
 
     @app.cli.command("financeiro-lacunas")
-    @click.option("--csv", "csv_path", default=None,
-                  help="Grava o relatório neste caminho .csv (por omissão só imprime no terminal).")
-    @click.option("--apply", "aplicar", is_flag=True,
-                  help="Escreve na BD as sugestões com estado 'ok'. Nunca escreve 'ambíguo'/'sem correspondência'.")
+    @click.option(
+        "--csv",
+        "csv_path",
+        default=None,
+        help="Grava o relatório neste caminho .csv (por omissão só imprime no terminal).",
+    )
+    @click.option(
+        "--apply",
+        "aplicar",
+        is_flag=True,
+        help="Escreve na BD as sugestões com estado 'ok'. Nunca escreve 'ambíguo'/'sem correspondência'.",
+    )
     def financeiro_lacunas_cmd(csv_path, aplicar):
         """Relatório de numero_factura/entidade_emissora em falta (sugestões da Descrição)."""
-        from .financeiro_service import relatorio_lacunas_financeiro, aplicar_lacunas_financeiro
+        from .financeiro_service import aplicar_lacunas_financeiro, relatorio_lacunas_financeiro
 
         linhas = relatorio_lacunas_financeiro()
         if not linhas:
             click.echo("Nenhum movimento com Nº de factura/Entidade emissora em falta.")
             return
 
-        campos = ["numero_ordem", "descricao", "num_factura_atual", "num_factura_sugerido",
-                  "entidade_atual", "entidade_sugerida", "entidade_candidatos", "estado"]
+        campos = [
+            "numero_ordem",
+            "descricao",
+            "num_factura_atual",
+            "num_factura_sugerido",
+            "entidade_atual",
+            "entidade_sugerida",
+            "entidade_candidatos",
+            "estado",
+        ]
 
         if csv_path:
             import csv as csv_mod
+
             with open(csv_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv_mod.DictWriter(f, fieldnames=campos)
                 writer.writeheader()
@@ -61,12 +84,18 @@ def register_cli(app):
                     writer.writerow({k: linha[k] for k in campos})
             click.echo(f"Relatório gravado em {csv_path} ({len(linhas)} movimentos).")
         else:
-            click.echo(f"{'Ordem':>6}  {'Estado':<20}  {'Nº factura (atual → sugerido)':<32}  "
-                       f"{'Entidade (atual → sugerida/candidatos)':<45}  Descrição")
+            click.echo(
+                f"{'Ordem':>6}  {'Estado':<20}  {'Nº factura (atual → sugerido)':<32}  "
+                f"{'Entidade (atual → sugerida/candidatos)':<45}  Descrição"
+            )
             click.echo("-" * 150)
             for linha in linhas:
-                factura = f"{linha['num_factura_atual'] or '—'} → {linha['num_factura_sugerido'] or '—'}"
-                entidade_sugestao = linha["entidade_sugerida"] or linha["entidade_candidatos"] or "—"
+                factura = (
+                    f"{linha['num_factura_atual'] or '—'} → {linha['num_factura_sugerido'] or '—'}"
+                )
+                entidade_sugestao = (
+                    linha["entidade_sugerida"] or linha["entidade_candidatos"] or "—"
+                )
                 entidade = f"{linha['entidade_atual'] or '—'} → {entidade_sugestao}"
                 click.echo(
                     f"{linha['numero_ordem']:>6}  {linha['estado']:<20}  {factura:<32}  "
@@ -109,9 +138,5 @@ def register_cli(app):
         click.echo("-" * 52)
 
         total = Client.query.count()
-        com_nif = Client.query.filter(
-            Client.nif.isnot(None), Client.nif != ""
-        ).count()
-        click.echo(
-            f"Mostrados: {len(clientes)} | Total no CRM: {total} | com NIF: {com_nif}"
-        )
+        com_nif = Client.query.filter(Client.nif.isnot(None), Client.nif != "").count()
+        click.echo(f"Mostrados: {len(clientes)} | Total no CRM: {total} | com NIF: {com_nif}")

@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+
 from config import Config
 
 db = SQLAlchemy()
@@ -12,14 +13,15 @@ def create_app(config_class=Config):
 
     db.init_app(app)
 
+    from .blueprints.api_v1 import bp as api_v1_bp
+    from .blueprints.auth import bp as auth_bp
+    from .blueprints.auth import require_login
     from .blueprints.clients import bp as clients_bp
+    from .blueprints.financeiro import bp as financeiro_bp
+    from .blueprints.frontend import bp as frontend_bp
     from .blueprints.installations import bp as installations_bp
     from .blueprints.interactions import bp as interactions_bp
     from .blueprints.proposals import bp as proposals_bp
-    from .blueprints.financeiro import bp as financeiro_bp
-    from .blueprints.api_v1 import bp as api_v1_bp
-    from .blueprints.frontend import bp as frontend_bp
-    from .blueprints.auth import bp as auth_bp, require_login
 
     app.register_blueprint(clients_bp, url_prefix="/api/clients")
     app.register_blueprint(installations_bp, url_prefix="/api/installations")
@@ -41,6 +43,7 @@ def create_app(config_class=Config):
 
     # Comandos CLI personalizados (flask clientes-nif, futuramente importar-financeiro, ...)
     from .cli import register_cli
+
     register_cli(app)
 
     with app.app_context():
@@ -77,7 +80,8 @@ def _check_distinct_passwords(app):
 
 def _add_column_if_missing(app, table, column, col_type):
     """Adiciona uma coluna à tabela se ainda não existir (SQLite + PostgreSQL)."""
-    from sqlalchemy import text, inspect
+    from sqlalchemy import inspect, text
+
     with app.app_context():
         try:
             insp = inspect(db.engine)
@@ -95,10 +99,12 @@ def _migrate_proposals_to_documents(app):
     with app.app_context():
         try:
             from sqlalchemy import inspect
+
             insp = inspect(db.engine)
             if "client_documents" not in insp.get_table_names():
                 return
             from .models import Client, ClientDocument
+
             clients = Client.query.filter(
                 Client.proposal_path.isnot(None), Client.proposal_path != ""
             ).all()

@@ -1,10 +1,16 @@
+import base64
 import hmac
 import io
-import base64
 
 from flask import (
-    Blueprint, request, session, redirect, url_for,
-    render_template, current_app, jsonify,
+    Blueprint,
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
 )
 
 bp = Blueprint("auth", __name__)
@@ -21,6 +27,7 @@ def _totp_secret_for(role):
 
 
 # ── Login (passo 1 — password) ────────────────────────────────────────────────
+
 
 @bp.get("/login")
 def login_page():
@@ -72,6 +79,7 @@ def login():
 
 # ── MFA (passo 2 — TOTP) ──────────────────────────────────────────────────────
 
+
 @bp.get("/mfa")
 def mfa_page():
     if session.get("authed"):
@@ -93,6 +101,7 @@ def mfa_verify():
         return redirect(url_for("auth.login_page"))
 
     import pyotp
+
     totp = pyotp.TOTP(totp_secret)
     # valid_window=1 tolera ±30 s de drift do relógio.
     if totp.verify(code, valid_window=1):
@@ -107,6 +116,7 @@ def mfa_verify():
 
 # ── Setup MFA (só acessível com sessão autenticada) ───────────────────────────
 
+
 @bp.get("/mfa/setup")
 def mfa_setup():
     """Mostra QR code para configurar o autenticador. Requer login."""
@@ -119,11 +129,15 @@ def mfa_setup():
     if not totp_secret:
         return render_template(
             "mfa_setup.html",
-            qr_data=None, secret=None, var_name=var_name,
+            qr_data=None,
+            secret=None,
+            var_name=var_name,
             error=f"{var_name} não está definido nas variáveis de ambiente.",
         )
 
-    import pyotp, qrcode
+    import pyotp
+    import qrcode
+
     totp = pyotp.TOTP(totp_secret)
     account_name = "contabilista" if role == "contabilista" else "connect2sun-crm"
     uri = totp.provisioning_uri(name=account_name, issuer_name="Connect2Sun CRM")
@@ -139,6 +153,7 @@ def mfa_setup():
 
 
 # ── Logout ────────────────────────────────────────────────────────────────────
+
 
 @bp.get("/logout")
 def logout():
@@ -171,13 +186,21 @@ def require_login():
     # chave falha, devolve 401 aqui e NÃO cai na lógica de sessão humana.
     if request.path.startswith("/api/v1/"):
         from ..api_auth import verificar_api_key
+
         if verificar_api_key(request):
             return None
         return jsonify({"error": "API key inválida ou em falta"}), 401
 
     if not session.get("authed"):
-        public = ("auth.login", "auth.login_page", "auth.mfa_page",
-                  "auth.mfa_verify", "auth.mfa_setup", "ping", "static")
+        public = (
+            "auth.login",
+            "auth.login_page",
+            "auth.mfa_page",
+            "auth.mfa_verify",
+            "auth.mfa_setup",
+            "ping",
+            "static",
+        )
         if request.endpoint in public:
             return None
         if request.path.startswith("/api/"):

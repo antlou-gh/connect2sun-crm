@@ -8,6 +8,7 @@
 Para BDs novas (ex.: produção) não é preciso correr isto — o modelo já cria
 a coluna via db.create_all(). Correr com:  python migrate.py
 """
+
 import os
 import sqlite3
 
@@ -38,20 +39,15 @@ def main():
         print("+ coluna client_number adicionada")
 
     # 2) backfill sequencial para quem não tem número
-    rows = cur.execute(
-        "SELECT id FROM clients WHERE client_number IS NULL ORDER BY id"
-    ).fetchall()
-    start = (cur.execute("SELECT MAX(client_number) FROM clients").fetchone()[0] or 0)
+    rows = cur.execute("SELECT id FROM clients WHERE client_number IS NULL ORDER BY id").fetchall()
+    start = cur.execute("SELECT MAX(client_number) FROM clients").fetchone()[0] or 0
     for offset, (cid,) in enumerate(rows, start=1):
-        cur.execute(
-            "UPDATE clients SET client_number = ? WHERE id = ?", (start + offset, cid)
-        )
+        cur.execute("UPDATE clients SET client_number = ? WHERE id = ?", (start + offset, cid))
     if rows:
         print(f"+ {len(rows)} cliente(s) numerado(s) a partir de {start + 1}")
 
     cur.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS ix_clients_client_number "
-        "ON clients (client_number)"
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_clients_client_number ON clients (client_number)"
     )
 
     # 3) normalizar concelhos

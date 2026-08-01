@@ -1,4 +1,5 @@
 from app.blueprints.financeiro import _margem_cliente
+
 from .conftest import make_cliente, make_transacao
 
 

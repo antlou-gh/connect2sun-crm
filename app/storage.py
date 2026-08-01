@@ -9,8 +9,10 @@ Variáveis de ambiente necessárias no Render:
 Opcional:
     R2_ENDPOINT  (caso contrário derivado do account id)
 """
+
 import os
-from flask import current_app, send_from_directory, Response
+
+from flask import Response, current_app, send_from_directory
 
 
 def _r2_enabled():
@@ -49,7 +51,9 @@ def save(key, file_storage, content_type="application/pdf"):
     """Guarda um werkzeug FileStorage sob a chave dada."""
     if _r2_enabled():
         _client().upload_fileobj(
-            file_storage.stream, _bucket(), key,
+            file_storage.stream,
+            _bucket(),
+            key,
             ExtraArgs={"ContentType": content_type},
         )
     else:
@@ -77,6 +81,7 @@ def serve(key, download_name=None, as_attachment=False, mimetype="application/pd
         return None
     if _r2_enabled():
         from botocore.exceptions import ClientError
+
         try:
             obj = _client().get_object(Bucket=_bucket(), Key=key)
         except ClientError:
@@ -98,6 +103,9 @@ def serve(key, download_name=None, as_attachment=False, mimetype="application/pd
     if not os.path.exists(os.path.join(folder, key)):
         return None
     return send_from_directory(
-        folder, key, mimetype=mimetype,
-        as_attachment=as_attachment, download_name=download_name or key,
+        folder,
+        key,
+        mimetype=mimetype,
+        as_attachment=as_attachment,
+        download_name=download_name or key,
     )

@@ -18,8 +18,12 @@ from openpyxl.utils import get_column_letter, range_boundaries
 
 from . import db
 from .models import (
-    Transacao, Client,
-    ESTADOS, TIPOS_MOVIMENTO, CATEGORIAS, MESES,
+    CATEGORIAS,
+    ESTADOS,
+    MESES,
+    TIPOS_MOVIMENTO,
+    Client,
+    Transacao,
 )
 
 SHEET_NAME = "BD Financeira 2026"
@@ -27,7 +31,9 @@ TABELA = "Tabela2"
 
 # Caminho do ficheiro-modelo (cabeçalhos + estilos, sem dados) usado pelo export.
 MODELO_PATH = os.path.join(
-    os.path.dirname(__file__), "static", "templates_xlsx",
+    os.path.dirname(__file__),
+    "static",
+    "templates_xlsx",
     "BD_Financeira_2026_modelo.xlsx",
 )
 
@@ -49,12 +55,23 @@ CAB_TIPO = "Tipo de movimento"
 
 # Cabeçalhos obrigatórios para o import funcionar.
 CABECALHOS_IMPORT = [
-    CAB_NUMERO, CAB_DESCRICAO, CAB_NIF, CAB_VALOR, CAB_ENTIDADE, CAB_FACTURA,
-    CAB_SIVA, CAB_IVA_PCT, CAB_DIA, CAB_MES, CAB_ESTADO, CAB_TIPO,
+    CAB_NUMERO,
+    CAB_DESCRICAO,
+    CAB_NIF,
+    CAB_VALOR,
+    CAB_ENTIDADE,
+    CAB_FACTURA,
+    CAB_SIVA,
+    CAB_IVA_PCT,
+    CAB_DIA,
+    CAB_MES,
+    CAB_ESTADO,
+    CAB_TIPO,
 ]
 
 
 # ── Normalização ──────────────────────────────────────────────────────────────
+
 
 def _normalizar(texto):
     """trim + minúsculas + sem acentos — para comparar cabeçalhos de forma robusta."""
@@ -105,6 +122,7 @@ def mes_para_numero(nome):
 
 # ── Localização da tabela / mapa de cabeçalhos ────────────────────────────────
 
+
 def _selecionar_folha(wb):
     if SHEET_NAME in wb.sheetnames:
         return wb[SHEET_NAME]
@@ -139,12 +157,12 @@ def _exigir_cabecalhos(mapa, cabecalhos):
     em_falta = [c for c in cabecalhos if _normalizar(c) not in mapa]
     if em_falta:
         raise ValueError(
-            "Cabeçalhos em falta na folha (lidos por nome, não por posição): "
-            + ", ".join(em_falta)
+            "Cabeçalhos em falta na folha (lidos por nome, não por posição): " + ", ".join(em_falta)
         )
 
 
 # ── Importação ────────────────────────────────────────────────────────────────
+
 
 def importar_financeiro(caminho_xlsx, ano=2026):
     """Importa os movimentos do .xlsx para a tabela `transacoes`.
@@ -175,8 +193,10 @@ def importar_financeiro(caminho_xlsx, ano=2026):
 
     # Nºs de ordem já existentes — para idempotência.
     existentes = {
-        n for (n,) in db.session.query(Transacao.numero_ordem)
-        .filter(Transacao.numero_ordem.isnot(None)).all()
+        n
+        for (n,) in db.session.query(Transacao.numero_ordem)
+        .filter(Transacao.numero_ordem.isnot(None))
+        .all()
     }
 
     importados = ja_existentes = sem_cliente = ignoradas = 0
@@ -275,6 +295,7 @@ def importar_financeiro(caminho_xlsx, ano=2026):
 
 # ── Exportação (snapshot app → Excel) ─────────────────────────────────────────
 
+
 def gerar_export_financeiro(ano=2026):
     """Gera um Workbook (snapshot) das transações do `ano` no formato da folha.
 
@@ -282,9 +303,7 @@ def gerar_export_financeiro(ano=2026):
     Read-only sobre a BD. Escreve cada campo na coluna do respetivo cabeçalho.
     """
     if not os.path.exists(MODELO_PATH):
-        raise FileNotFoundError(
-            f"Ficheiro-modelo do export não encontrado: {MODELO_PATH}"
-        )
+        raise FileNotFoundError(f"Ficheiro-modelo do export não encontrado: {MODELO_PATH}")
 
     wb = load_workbook(MODELO_PATH)  # ler fresco a cada chamada (não mutar partilhado)
     ws = _selecionar_folha(wb)
@@ -305,14 +324,13 @@ def gerar_export_financeiro(ano=2026):
         linha_dim.hidden = False
 
     transacoes = (
-        Transacao.query
-        .filter(db.extract("year", Transacao.data) == ano)
+        Transacao.query.filter(db.extract("year", Transacao.data) == ano)
         .order_by(Transacao.numero_ordem.asc())
         .all()
     )
 
     FORMATO_MOEDA = '#,##0.00" €"'
-    FORMATO_PCT = '0.00%'
+    FORMATO_PCT = "0.00%"
 
     def escrever(linha, cabecalho, valor, number_format=None):
         col = mapa[_normalizar(cabecalho)]
@@ -342,7 +360,7 @@ def gerar_export_financeiro(ano=2026):
         escrever(linha, CAB_IVA, iva, FORMATO_MOEDA)  # valor literal
         escrever(linha, CAB_IVA_PCT, t.iva_pct, FORMATO_PCT)
         escrever(linha, CAB_DIA, t.data.day if t.data else None)
-        escrever(linha, CAB_MES, mes_nome)           # texto português
+        escrever(linha, CAB_MES, mes_nome)  # texto português
         escrever(linha, CAB_TOTAL, total, FORMATO_MOEDA)  # literal, nunca fórmula
         escrever(linha, CAB_ESTADO, t.estado)
         escrever(linha, CAB_TIPO, t.tipo_movimento)
@@ -352,8 +370,7 @@ def gerar_export_financeiro(ano=2026):
     # Mínimo: cabeçalho + 1 linha (mantém a tabela válida mesmo sem dados).
     ultima = max(linha, header_row + 1)
     if TABELA in ws.tables:
-        ref = (f"{get_column_letter(min_col)}{header_row}:"
-               f"{get_column_letter(max_col)}{ultima}")
+        ref = f"{get_column_letter(min_col)}{header_row}:{get_column_letter(max_col)}{ultima}"
         ws.tables[TABELA].ref = ref
 
     return wb
@@ -363,6 +380,7 @@ def gerar_export_financeiro(ano=2026):
 # Esta é a ÚNICA fonte de verdade da regra "criar uma transação válida". Tanto o
 # endpoint humano (blueprints/financeiro.py) como a API de máquina
 # (blueprints/api_v1.py) chamam criar_transacao_from_dict.
+
 
 def _parse_date(value):
     if not value:
@@ -558,19 +576,23 @@ def relatorio_lacunas_financeiro():
     """
     entidades_conhecidas = sorted(
         {
-            e for (e,) in db.session.query(Transacao.entidade_emissora)
+            e
+            for (e,) in db.session.query(Transacao.entidade_emissora)
             .filter(Transacao.entidade_emissora.isnot(None), Transacao.entidade_emissora != "")
-            .distinct().all()
+            .distinct()
+            .all()
         },
-        key=len, reverse=True,
+        key=len,
+        reverse=True,
     )
 
     transacoes = (
-        Transacao.query
-        .filter(
+        Transacao.query.filter(
             db.or_(
-                Transacao.num_factura.is_(None), Transacao.num_factura == "",
-                Transacao.entidade_emissora.is_(None), Transacao.entidade_emissora == "",
+                Transacao.num_factura.is_(None),
+                Transacao.num_factura == "",
+                Transacao.entidade_emissora.is_(None),
+                Transacao.entidade_emissora == "",
             )
         )
         .order_by(Transacao.numero_ordem.asc())
@@ -580,9 +602,9 @@ def relatorio_lacunas_financeiro():
     linhas = []
     for t in transacoes:
         falta_factura = _vazio(t.num_factura) and not _isento_num_factura(t)
-        falta_entidade = _vazio(t.entidade_emissora) and not (
-            t.descricao or ""
-        ).startswith(ISENTOS_ENTIDADE_PREFIXOS)
+        falta_entidade = _vazio(t.entidade_emissora) and not (t.descricao or "").startswith(
+            ISENTOS_ENTIDADE_PREFIXOS
+        )
 
         if not falta_factura and not falta_entidade:
             # O que "faltava" está isento — não é lacuna, não entra no
@@ -605,17 +627,21 @@ def relatorio_lacunas_financeiro():
         else:
             estado = "ok"
 
-        linhas.append({
-            "_id": t.id,
-            "numero_ordem": t.numero_ordem,
-            "descricao": t.descricao,
-            "num_factura_atual": t.num_factura or "",
-            "num_factura_sugerido": factura_sugerida or "",
-            "entidade_atual": t.entidade_emissora or "",
-            "entidade_sugerida": entidade_sugerida or "",
-            "entidade_candidatos": ", ".join(candidatos_entidade) if len(candidatos_entidade) > 1 else "",
-            "estado": estado,
-        })
+        linhas.append(
+            {
+                "_id": t.id,
+                "numero_ordem": t.numero_ordem,
+                "descricao": t.descricao,
+                "num_factura_atual": t.num_factura or "",
+                "num_factura_sugerido": factura_sugerida or "",
+                "entidade_atual": t.entidade_emissora or "",
+                "entidade_sugerida": entidade_sugerida or "",
+                "entidade_candidatos": ", ".join(candidatos_entidade)
+                if len(candidatos_entidade) > 1
+                else "",
+                "estado": estado,
+            }
+        )
     return linhas
 
 

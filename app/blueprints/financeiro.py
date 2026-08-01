@@ -11,13 +11,18 @@ from flask import Blueprint, jsonify, request, send_file
 from sqlalchemy import extract
 
 from .. import db
-from ..models import (
-    Transacao, Client,
-    ESTADOS, TIPOS_MOVIMENTO, CATEGORIAS, MESES,
-)
+
 # Regra de negócio de criação/aplicação de campos vive no serviço partilhado
 # (fonte única, reutilizada também pela API de máquina /api/v1).
-from ..financeiro_service import criar_transacao_from_dict, _aplicar_campos
+from ..financeiro_service import _aplicar_campos, criar_transacao_from_dict
+from ..models import (
+    CATEGORIAS,
+    ESTADOS,
+    MESES,
+    TIPOS_MOVIMENTO,
+    Client,
+    Transacao,
+)
 
 bp = Blueprint("financeiro", __name__)
 
@@ -52,6 +57,7 @@ def _siva(t):
 
 # ── Metadados (constantes + clientes) para dropdowns ──────────────────────────
 
+
 @bp.get("/meta")
 def meta():
     clientes = (
@@ -60,7 +66,8 @@ def meta():
         .all()
     )
     entidades_emissoras = [
-        e for (e,) in (
+        e
+        for (e,) in (
             db.session.query(Transacao.entidade_emissora)
             .filter(Transacao.entidade_emissora.isnot(None))
             .distinct()
@@ -68,20 +75,22 @@ def meta():
             .all()
         )
     ]
-    return jsonify({
-        "estados": ESTADOS,
-        "tipos_movimento": TIPOS_MOVIMENTO,
-        "categorias": CATEGORIAS,
-        "meses": MESES,
-        "entidades_emissoras": entidades_emissoras,
-        "clientes": [
-            {"id": c.id, "client_number": c.client_number, "name": c.name}
-            for c in clientes
-        ],
-    })
+    return jsonify(
+        {
+            "estados": ESTADOS,
+            "tipos_movimento": TIPOS_MOVIMENTO,
+            "categorias": CATEGORIAS,
+            "meses": MESES,
+            "entidades_emissoras": entidades_emissoras,
+            "clientes": [
+                {"id": c.id, "client_number": c.client_number, "name": c.name} for c in clientes
+            ],
+        }
+    )
 
 
 # ── CRUD de movimentos ────────────────────────────────────────────────────────
+
 
 @bp.get("/transacoes")
 def list_transacoes():
@@ -116,9 +125,7 @@ def list_transacoes():
     if q:
         query = query.filter(Transacao.descricao.ilike(f"%{q}%"))
 
-    transacoes = query.order_by(
-        Transacao.data.desc(), Transacao.numero_ordem.desc()
-    ).all()
+    transacoes = query.order_by(Transacao.data.desc(), Transacao.numero_ordem.desc()).all()
     return jsonify([t.to_dict() for t in transacoes])
 
 
@@ -154,12 +161,12 @@ def delete_transacao(transacao_id):
 
 # ── Ecrãs de revisão (derivados por query) ────────────────────────────────────
 
+
 @bp.get("/por-categorizar")
 def por_categorizar():
     """categoria IS NULL e tipo em (Custos gerais, Pagamentos ao Estado)."""
     transacoes = (
-        Transacao.query
-        .filter(Transacao.categoria.is_(None))
+        Transacao.query.filter(Transacao.categoria.is_(None))
         .filter(Transacao.tipo_movimento.in_(TIPOS_COM_CATEGORIA))
         .order_by(Transacao.data.desc(), Transacao.numero_ordem.desc())
         .all()
@@ -171,8 +178,7 @@ def por_categorizar():
 def por_associar():
     """cliente_id IS NULL e tipo em (Facturação, Material/Serviços)."""
     transacoes = (
-        Transacao.query
-        .filter(Transacao.cliente_id.is_(None))
+        Transacao.query.filter(Transacao.cliente_id.is_(None))
         .filter(Transacao.tipo_movimento.in_(TIPOS_COM_CLIENTE))
         .order_by(Transacao.data.desc(), Transacao.numero_ordem.desc())
         .all()
@@ -181,6 +187,7 @@ def por_associar():
 
 
 # ── Dashboards ────────────────────────────────────────────────────────────────
+
 
 def _calcular_pl(rows):
     """Totais de P&L (base sem IVA) para um conjunto de movimentos.
@@ -191,15 +198,17 @@ def _calcular_pl(rows):
     fornecedor) abate aos custos diretos).
     """
     faturacao = sum(_siva(t) for t in rows if t.tipo_movimento == "Facturação")
-    faturacao += sum(_siva(t) for t in rows
-                      if t.tipo_movimento == "Nota de crédito" and t.valor < 0)
-    custos_diretos = sum(abs(_siva(t)) for t in rows
-                         if t.tipo_movimento == "Material/Serviços")
-    custos_diretos -= sum(_siva(t) for t in rows
-                          if t.tipo_movimento == "Nota de crédito" and t.valor > 0)
+    faturacao += sum(
+        _siva(t) for t in rows if t.tipo_movimento == "Nota de crédito" and t.valor < 0
+    )
+    custos_diretos = sum(abs(_siva(t)) for t in rows if t.tipo_movimento == "Material/Serviços")
+    custos_diretos -= sum(
+        _siva(t) for t in rows if t.tipo_movimento == "Nota de crédito" and t.valor > 0
+    )
 
-    estrutura_rows = [t for t in rows
-                      if t.tipo_movimento in ("Custos gerais", "Pagamentos ao Estado")]
+    estrutura_rows = [
+        t for t in rows if t.tipo_movimento in ("Custos gerais", "Pagamentos ao Estado")
+    ]
     custos_estrutura = sum(abs(_siva(t)) for t in estrutura_rows)
 
     breakdown = {}
@@ -233,17 +242,21 @@ def dashboard_pl():
     rows = query.all()
 
     c = _calcular_pl(rows)
-    return jsonify({
-        "ano": ano,
-        "mes": mes,
-        "receita": round(c["faturacao"], 2),
-        "custos_diretos": round(c["custos_diretos"], 2),
-        "custos_estrutura": round(c["custos_estrutura"], 2),
-        "breakdown_estrutura": {k: round(v, 2) for k, v in
-                                sorted(c["breakdown_estrutura"].items(), key=lambda x: -x[1])},
-        "resultado": round(c["resultado"], 2),
-        "num_movimentos": c["num_movimentos"],
-    })
+    return jsonify(
+        {
+            "ano": ano,
+            "mes": mes,
+            "receita": round(c["faturacao"], 2),
+            "custos_diretos": round(c["custos_diretos"], 2),
+            "custos_estrutura": round(c["custos_estrutura"], 2),
+            "breakdown_estrutura": {
+                k: round(v, 2)
+                for k, v in sorted(c["breakdown_estrutura"].items(), key=lambda x: -x[1])
+            },
+            "resultado": round(c["resultado"], 2),
+            "num_movimentos": c["num_movimentos"],
+        }
+    )
 
 
 @bp.get("/dashboard/mensal")
@@ -263,32 +276,36 @@ def dashboard_mensal():
     meses = []
     for m in range(1, 13):
         c = _calcular_pl(por_mes[m])
-        meses.append({
-            "mes": m,
-            "mes_nome": MESES[m - 1],
-            "faturacao": round(c["faturacao"], 2),
-            "custos_diretos": round(c["custos_diretos"], 2),
-            "custos_estrutura": round(c["custos_estrutura"], 2),
-            "custos": round(c["custos"], 2),
-            "resultado": round(c["resultado"], 2),
-            "num_movimentos": c["num_movimentos"],
-        })
+        meses.append(
+            {
+                "mes": m,
+                "mes_nome": MESES[m - 1],
+                "faturacao": round(c["faturacao"], 2),
+                "custos_diretos": round(c["custos_diretos"], 2),
+                "custos_estrutura": round(c["custos_estrutura"], 2),
+                "custos": round(c["custos"], 2),
+                "resultado": round(c["resultado"], 2),
+                "num_movimentos": c["num_movimentos"],
+            }
+        )
 
     # Totais do ano == _calcular_pl sobre todos os movimentos (soma é aditiva
     # por partição de meses; evita reacumular campo a campo).
     t = _calcular_pl(rows)
-    return jsonify({
-        "ano": ano,
-        "meses": meses,
-        "totais": {
-            "faturacao": round(t["faturacao"], 2),
-            "custos_diretos": round(t["custos_diretos"], 2),
-            "custos_estrutura": round(t["custos_estrutura"], 2),
-            "custos": round(t["custos"], 2),
-            "resultado": round(t["resultado"], 2),
-            "num_movimentos": t["num_movimentos"],
-        },
-    })
+    return jsonify(
+        {
+            "ano": ano,
+            "meses": meses,
+            "totais": {
+                "faturacao": round(t["faturacao"], 2),
+                "custos_diretos": round(t["custos_diretos"], 2),
+                "custos_estrutura": round(t["custos_estrutura"], 2),
+                "custos": round(t["custos"], 2),
+                "resultado": round(t["resultado"], 2),
+                "num_movimentos": t["num_movimentos"],
+            },
+        }
+    )
 
 
 def _margem_cliente(cliente_id, ano=None):
@@ -307,7 +324,7 @@ def _margem_cliente(cliente_id, ano=None):
             if t.valor < 0:
                 faturacao += _siva(t)  # NC de venda: abate à facturação
             else:
-                custos -= _siva(t)     # NC de fornecedor: abate aos custos
+                custos -= _siva(t)  # NC de fornecedor: abate aos custos
         elif t.tipo_movimento == "Material/Serviços":
             custos += abs(_siva(t))
     return round(faturacao, 2), round(custos, 2), round(faturacao - custos, 2)
@@ -325,11 +342,15 @@ def dashboard_margem_cliente():
 
     agg = {}  # cliente_id -> {faturacao, custos}
     for t in rows:
-        a = agg.setdefault(t.cliente_id, {
-            "faturacao": 0.0, "custos": 0.0,
-            "cliente_nome": t.cliente.name if t.cliente else None,
-            "cliente_numero": t.cliente.client_number if t.cliente else None,
-        })
+        a = agg.setdefault(
+            t.cliente_id,
+            {
+                "faturacao": 0.0,
+                "custos": 0.0,
+                "cliente_nome": t.cliente.name if t.cliente else None,
+                "cliente_numero": t.cliente.client_number if t.cliente else None,
+            },
+        )
         # Base SEM IVA (ver _siva); direção da NC pelo sinal de `valor`.
         if t.tipo_movimento == "Facturação":
             a["faturacao"] += _siva(t)
@@ -337,20 +358,22 @@ def dashboard_margem_cliente():
             if t.valor < 0:
                 a["faturacao"] += _siva(t)  # NC de venda: abate à facturação
             else:
-                a["custos"] -= _siva(t)     # NC de fornecedor: abate aos custos
+                a["custos"] -= _siva(t)  # NC de fornecedor: abate aos custos
         elif t.tipo_movimento == "Material/Serviços":
             a["custos"] += abs(_siva(t))
 
     resultado = []
     for cid, a in agg.items():
-        resultado.append({
-            "cliente_id": cid,
-            "cliente_nome": a["cliente_nome"],
-            "cliente_numero": a["cliente_numero"],
-            "faturacao": round(a["faturacao"], 2),
-            "custos": round(a["custos"], 2),
-            "margem": round(a["faturacao"] - a["custos"], 2),
-        })
+        resultado.append(
+            {
+                "cliente_id": cid,
+                "cliente_nome": a["cliente_nome"],
+                "cliente_numero": a["cliente_numero"],
+                "faturacao": round(a["faturacao"], 2),
+                "custos": round(a["custos"], 2),
+                "margem": round(a["faturacao"] - a["custos"], 2),
+            }
+        )
     resultado.sort(key=lambda x: x["margem"], reverse=True)
     return jsonify(resultado)
 
@@ -365,25 +388,27 @@ def cliente_financeiro(cliente_id):
         .order_by(Transacao.data.desc(), Transacao.numero_ordem.desc())
         .all()
     )
-    return jsonify({
-        "faturacao": faturacao,
-        "custos": custos,
-        "margem": margem,
-        "movimentos": [t.to_dict() for t in movimentos],
-    })
+    return jsonify(
+        {
+            "faturacao": faturacao,
+            "custos": custos,
+            "margem": margem,
+            "movimentos": [t.to_dict() for t in movimentos],
+        }
+    )
 
 
 # ── Exportação para Excel (snapshot app → ficheiro novo) ──────────────────────
 
+
 @bp.get("/exportar")
 def exportar():
     from ..financeiro_service import gerar_export_financeiro
+
     ano = request.args.get("ano", type=int) or date.today().year
     wb = gerar_export_financeiro(ano=ano)
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)
     nome = f"BD Financeira_export_{date.today():%Y%m%d}.xlsx"
-    return send_file(
-        buffer, mimetype=XLSX_MIME, as_attachment=True, download_name=nome
-    )
+    return send_file(buffer, mimetype=XLSX_MIME, as_attachment=True, download_name=nome)

@@ -1,6 +1,8 @@
 import os
-from flask import Blueprint, render_template, make_response, current_app, url_for
+
+from flask import Blueprint, current_app, make_response, render_template, url_for
 from weasyprint import HTML
+
 from .. import db
 from ..models import Client
 

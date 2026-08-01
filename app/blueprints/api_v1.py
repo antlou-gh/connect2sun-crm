@@ -15,8 +15,8 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import extract
 
 from .. import db
-from ..models import Transacao, Client
 from ..financeiro_service import criar_transacao_from_dict
+from ..models import Client, Transacao
 
 bp = Blueprint("api_v1", __name__)
 
@@ -82,7 +82,5 @@ def listar_transacoes():
     if q:
         query = query.filter(Transacao.descricao.ilike(f"%{q}%"))
 
-    transacoes = query.order_by(
-        Transacao.data.desc(), Transacao.numero_ordem.desc()
-    ).all()
+    transacoes = query.order_by(Transacao.data.desc(), Transacao.numero_ordem.desc()).all()
     return jsonify([t.to_dict() for t in transacoes])

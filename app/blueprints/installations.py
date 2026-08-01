@@ -1,5 +1,7 @@
 from datetime import date
+
 from flask import Blueprint, jsonify, request
+
 from .. import db
 from ..models import Client, Installation
 
@@ -56,10 +58,20 @@ def update_installation(client_id):
     inst = Installation.query.filter_by(client_id=client_id).first_or_404()
     body = request.get_json(silent=True) or {}
 
-    fields = ("power_kwp", "num_modules", "module_model", "inverter_model",
-              "inverter_power_kw", "battery_model", "battery_capacity_kwh",
-              "roof_type", "orientation", "tilt_degrees", "estimated_annual_kwh",
-              "total_price")
+    fields = (
+        "power_kwp",
+        "num_modules",
+        "module_model",
+        "inverter_model",
+        "inverter_power_kw",
+        "battery_model",
+        "battery_capacity_kwh",
+        "roof_type",
+        "orientation",
+        "tilt_degrees",
+        "estimated_annual_kwh",
+        "total_price",
+    )
     for field in fields:
         if field in body:
             setattr(inst, field, body[field])
