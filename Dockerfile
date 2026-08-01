@@ -23,6 +23,10 @@ COPY . .
 EXPOSE 10000
 
 # Render fornece $PORT; usamos shell-form para o expandir.
-# 1 worker evita a corrida no db.create_all() do 1º arranque e poupa RAM (free
-# tier = 512 MB); --threads dá concorrência leve sem processos extra.
-CMD gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 run:app
+# O `alembic upgrade head` corre antes do gunicorn e é a unica forma de o
+# esquema mudar em producao (o create_app() ja nao cria tabelas). Se a migracao
+# falhar, o `&&` impede o arranque — melhor falhar o deploy do que servir a app
+# contra um esquema errado.
+# 1 worker evita corridas na migracao e poupa RAM (free tier = 512 MB);
+# --threads da concorrencia leve sem processos extra.
+CMD alembic upgrade head && gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 run:app

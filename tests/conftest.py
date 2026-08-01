@@ -20,7 +20,13 @@ class TestConfig:
 def app():
     app = create_app(TestConfig)
     with app.app_context():
+        # O create_app() já não cria o esquema (é do Alembic desde ago/2026).
+        # Nos testes usamos create_all() sobre SQLite em memória: é descartável
+        # e evita correr migrações a cada teste.
+        _db.create_all()
         yield app
+        _db.session.remove()
+        _db.drop_all()
 
 
 @pytest.fixture

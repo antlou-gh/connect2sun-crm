@@ -46,18 +46,14 @@ def create_app(config_class=Config):
 
     register_cli(app)
 
-    with app.app_context():
-        db.create_all()
-        # Migracoes automaticas — adicionar colunas novas sem perder dados.
-        # Usa abordagem compatível com SQLite e PostgreSQL.
-        _add_column_if_missing(app, "clients", "locality", "VARCHAR(120)")
-        _add_column_if_missing(app, "clients", "proposal_path", "VARCHAR(500)")
-        # DESATIVADO (jun. 2026): a migração proposal_path → client_documents já
-        # cumpriu o propósito. Mantida em convivência com o multi-documento,
-        # gerava um ClientDocument duplicado por proposta (stored_name
-        # "client_<id>.pdf"). Ver backlog ponto 1. Definição mantida abaixo,
-        # apenas para referência/reversão.
-        # _migrate_proposals_to_documents(app)
+    # O esquema da base de dados é da responsabilidade do Alembic
+    # (`alembic upgrade head`, corrido no arranque do contentor — ver Dockerfile).
+    # Até ago/2026 era criado aqui com db.create_all() mais ALTER TABLE ad-hoc,
+    # o que impedia o Alembic de detetar alterações: a app criava as tabelas
+    # antes de ele as inspecionar. As colunas que _add_column_if_missing()
+    # acrescentava (clients.locality, clients.proposal_path) já existem em
+    # produção e nos modelos, portanto nada se perde. A função é mantida abaixo
+    # apenas para referência histórica.
 
     return app
 
