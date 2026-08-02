@@ -246,7 +246,21 @@ def importar_financeiro(caminho_xlsx, ano=2026):
         except (TypeError, ValueError):
             valor_siva = None
         # IVA: na folha é fórmula =ABS([Valor total])-[S/ IVA]; não guardar a string.
-        iva = round(abs(valor) - valor_siva, 2) if valor_siva is not None else None
+        # abs() nos DOIS: há linhas em que ambos vêm negativos (ex.: ordem 141,
+        # "Pag. acessórios") e sem o segundo abs() a subtracção virava soma,
+        # gravando o dobro do valor. Não se calcula base × taxa porque muitas
+        # facturas têm componentes isentas ou a taxa diferente (rendas, pacotes
+        # de telecomunicações) — a diferença capta o IVA realmente facturado.
+        iva = round(abs(valor) - abs(valor_siva), 2) if valor_siva is not None else None
+        if iva is not None and iva < 0:
+            # Acontece quando o valor pago é líquido de retenção na fonte
+            # (royalties): o pago fica abaixo da base e a diferença deixa de ser
+            # IVA. Fica visível na importação em vez de aterrar em silêncio.
+            avisos.append(
+                f"Linha {row} (ordem {numero}): S/ IVA ({valor_siva}) maior que o "
+                f"valor total ({valor}); IVA calculado ficou negativo ({iva}). "
+                "Há retenção na fonte? Confirmar à mão."
+            )
 
         iva_pct = ler(row, CAB_IVA_PCT)
         try:
