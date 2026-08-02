@@ -1,5 +1,17 @@
 # Render Blueprint — https://render.com/docs/blueprint-spec
-# Faz deploy automático ao ligar este repositório no Render (New → Blueprint).
+#
+# ┌───────────────────────────────────────────────────────────────────────────┐
+# │ AVISO: NÃO carregar em "Manual sync" no dashboard do Render.              │
+# │                                                                           │
+# │ Este blueprint foi DESCONECTADO em jul/2026. O serviço vivo               │
+# │ (connect2sun-crm) é gerido pelo dashboard e faz auto-deploy por push      │
+# │ para o GitHub. Um sync manual pode tentar criar o serviço de novo e       │
+# │ gerar um duplicado com sufixo — foi assim que nasceu o "-435a", que       │
+# │ teve de ser eliminado.                                                    │
+# │                                                                           │
+# │ Este ficheiro serve hoje como DOCUMENTAÇÃO do que o serviço precisa,      │
+# │ e como base caso alguma vez seja preciso recriá-lo de raiz.               │
+# └───────────────────────────────────────────────────────────────────────────┘
 services:
   - type: web
     name: connect2sun-crm
@@ -7,17 +19,50 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free                      # subdomínio público .onrender.com + HTTPS grátis
     autoDeploy: true
-    healthCheckPath: /
+    healthCheckPath: /ping          # público e sem BD; a "/" redirecciona para /login
     envVars:
+      # ── Essenciais ────────────────────────────────────────────────────────
       - key: SECRET_KEY
         generateValue: true         # chave secreta forte gerada pelo Render
       - key: DATABASE_URL
-        sync: false                 # cola a connection string do Neon no dashboard
-                                    # (ver DEPLOY.md). Dados ficam persistentes.
+        sync: false                 # connection string do Neon (ver DEPLOY.md).
+                                    # O arranque corre `alembic upgrade head`
+                                    # contra esta base — ver Dockerfile.
       - key: APP_PASSWORD
-        sync: false                 # define a palavra-passe de acesso à app
+        sync: false                 # palavra-passe do perfil admin
       - key: MCP_API_KEY
         sync: false                 # chave da API de máquina /api/v1 (X-API-Key).
                                     # Gera com:
                                     #   python -c "import secrets; print(secrets.token_urlsafe(32))"
                                     # Se não definida, a /api/v1 fica fechada (fail-closed).
+
+      # ── MFA ───────────────────────────────────────────────────────────────
+      - key: TOTP_SECRET
+        sync: false                 # segundo factor do admin. Se não definido, o
+                                    # login do admin passa a ser só password —
+                                    # aceitável em local, não em produção.
+
+      # ── Perfil contabilista (acesso read-only a /financeiro) ──────────────
+      - key: CONTAB_PASSWORD
+        sync: false                 # tem de ser DIFERENTE de APP_PASSWORD: se
+                                    # forem iguais a app recusa-se a arrancar.
+      - key: CONTAB_TOTP_SECRET
+        sync: false                 # obrigatório — sem ele a contabilista não
+                                    # consegue entrar (não há atalho sem MFA).
+
+      # ── Cloudflare R2 (armazenamento de documentos) ───────────────────────
+      # Sem estas cinco, a app cai para disco local — que no Render é efémero
+      # e se perde a cada deploy. Em produção são obrigatórias.
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false                 # opcional — se omitido, é derivado do account id
+
+      # Nota: RENDER é definida automaticamente pela plataforma e não se declara.
+      # É o que activa SESSION_COOKIE_SECURE em config.py.
