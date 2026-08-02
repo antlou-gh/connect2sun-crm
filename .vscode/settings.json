@@ -1,4 +1,13 @@
 {
+  "workbench.colorCustomizations": {
+    "titleBar.activeBackground": "#1e5f3a",
+    "titleBar.activeForeground": "#ffffff",
+    "titleBar.inactiveBackground": "#1e5f3a99",
+    "titleBar.inactiveForeground": "#ffffffcc",
+    "statusBar.background": "#1e5f3a",
+    "statusBar.foreground": "#ffffff"
+  },
+
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
