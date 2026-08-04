@@ -6,6 +6,7 @@ Autenticada SÓ por chave estática (X-API-Key), nunca por sessão de browser
 - POST /api/v1/transacoes  — criar movimento (única operação de escrita).
 - GET  /api/v1/clientes    — listar/filtrar clientes (read-only).
 - GET  /api/v1/transacoes  — consultar movimentos (read-only).
+- GET  /api/v1/saldo       — totais agregados por NIF (read-only).
 
 NÃO existem PUT/DELETE: a máquina nunca altera nem apaga. Se a chave vazar, o
 estrago possível fica limitado a "criar movimentos a mais" e "ler dados".
@@ -15,7 +16,7 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import extract
 
 from .. import db
-from ..financeiro_service import criar_transacao_from_dict
+from ..financeiro_service import criar_transacao_from_dict, saldo_por_nif
 from ..models import Client, Transacao
 
 bp = Blueprint("api_v1", __name__)
@@ -84,3 +85,22 @@ def listar_transacoes():
 
     transacoes = query.order_by(Transacao.data.desc(), Transacao.numero_ordem.desc()).all()
     return jsonify([t.to_dict() for t in transacoes])
+
+
+@bp.get("/saldo")
+def saldo():
+    """Totais agregados dos movimentos de um cliente, por NIF (read-only).
+
+    Existe para o servidor MCP não ter de puxar a lista toda para somar: essa
+    listagem é truncada às 100 linhas, pelo que somar do lado do cliente daria
+    um total errado sem dar sinal disso.
+
+    `?nif=` obrigatório; `?ano=` opcional. NIF desconhecido devolve **200** com
+    `encontrado: false`, não 404 nem saldo 0 — a diferença entre "não há esse
+    cliente" e "esse cliente está a zero" tem de chegar intacta a quem chama.
+    """
+    nif = (request.args.get("nif") or "").strip()
+    if not nif:
+        return jsonify({"error": "Parâmetro nif é obrigatório."}), 400
+    ano = request.args.get("ano", type=int)
+    return jsonify(saldo_por_nif(nif, ano=ano))

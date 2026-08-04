@@ -682,3 +682,119 @@ def aplicar_lacunas_financeiro(linhas):
             aplicados += 1
     db.session.commit()
     return aplicados
+
+
+# ── Saldo por NIF (agregação do lado da BD, para a /api/v1 e o MCP) ──────────
+# Existe porque somar do lado do cliente é uma armadilha: o servidor MCP corta
+# a listagem às 100 linhas, portanto quem somasse o que recebe obteria um total
+# errado com ar de certo. Aqui a soma é feita em SQL, sobre todos os
+# movimentos, e o que viaja é só o resultado.
+
+# Estados que representam dinheiro ainda em aberto. Um movimento sem estado
+# preenchido NÃO entra aqui — fica visível em `por_estado`, mas não se assume
+# que esteja por liquidar.
+ESTADOS_EM_ABERTO = {"Falta receber", "Falta pagar", "Pag. Parcial"}
+
+
+def saldo_por_nif(nif, ano=None):
+    """Totais dos movimentos associados ao(s) cliente(s) com este NIF.
+
+    O NIF é normalizado com `normalizar_nif` (tolera "PT123456789", espaços e
+    o inteiro que vem do Excel) e comparado contra o NIF normalizado de cada
+    cliente — a comparação é feita em Python, e não em SQL, porque os NIFs
+    estão gravados em formatos diferentes e um `WHERE nif = ...` falharia
+    silenciosamente nesses casos. A tabela `clients` tem dezenas de linhas,
+    pelo que o custo é irrelevante; a de `transacoes` é que nunca é percorrida
+    fora da BD.
+
+    Devolve sempre um dict, nunca levanta por NIF desconhecido: `encontrado`
+    distingue "não há cliente com este NIF" de "há cliente e o saldo é zero".
+    Confundir os dois é precisamente o erro que esta função existe para evitar.
+    """
+    nif_norm = normalizar_nif(nif)
+    if not nif_norm:
+        return {
+            "nif": None,
+            "encontrado": False,
+            "motivo": "NIF vazio ou inválido.",
+            "clientes": [],
+            "ano": ano,
+            "total_movimentos": 0,
+            "saldo": 0.0,
+            "em_aberto": 0.0,
+            "por_estado": [],
+            "primeira_data": None,
+            "ultima_data": None,
+        }
+
+    clientes = [
+        c
+        for c in Client.query.filter(Client.nif.isnot(None), Client.nif != "")
+        .order_by(Client.client_number.asc())
+        .all()
+        if normalizar_nif(c.nif) == nif_norm
+    ]
+
+    base = {
+        "nif": nif_norm,
+        "ano": ano,
+        "clientes": [
+            {"id": c.id, "client_number": c.client_number, "name": c.name} for c in clientes
+        ],
+    }
+
+    if not clientes:
+        return {
+            **base,
+            "encontrado": False,
+            "motivo": "Nenhum cliente com este NIF.",
+            "total_movimentos": 0,
+            "saldo": 0.0,
+            "em_aberto": 0.0,
+            "por_estado": [],
+            "primeira_data": None,
+            "ultima_data": None,
+        }
+
+    ids = [c.id for c in clientes]
+    filtros = [Transacao.cliente_id.in_(ids)]
+    if ano:
+        filtros.append(db.extract("year", Transacao.data) == ano)
+
+    # Uma linha por estado — a soma acontece na BD, não aqui.
+    linhas = (
+        db.session.query(
+            Transacao.estado,
+            db.func.count(Transacao.id),
+            db.func.coalesce(db.func.sum(Transacao.valor), 0.0),
+        )
+        .filter(*filtros)
+        .group_by(Transacao.estado)
+        .all()
+    )
+
+    primeira, ultima = (
+        db.session.query(db.func.min(Transacao.data), db.func.max(Transacao.data))
+        .filter(*filtros)
+        .one()
+    )
+
+    por_estado = [
+        {"estado": estado, "movimentos": n, "total": round(float(total), 2)}
+        for estado, n, total in sorted(linhas, key=lambda r: (r[0] is None, r[0] or ""))
+    ]
+    saldo = round(sum(linha["total"] for linha in por_estado), 2)
+    em_aberto = round(
+        sum(linha["total"] for linha in por_estado if linha["estado"] in ESTADOS_EM_ABERTO), 2
+    )
+
+    return {
+        **base,
+        "encontrado": True,
+        "total_movimentos": sum(linha["movimentos"] for linha in por_estado),
+        "saldo": saldo,
+        "em_aberto": em_aberto,
+        "por_estado": por_estado,
+        "primeira_data": primeira.isoformat() if primeira else None,
+        "ultima_data": ultima.isoformat() if ultima else None,
+    }
