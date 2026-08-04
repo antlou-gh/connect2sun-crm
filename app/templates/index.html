@@ -213,14 +213,20 @@
         </div>
       </div>
       <div class="filters">
-        <input type="text" id="search-input" placeholder="Pesquisar nome ou email…" oninput="filterClients()">
-        <select id="concelho-filter" onchange="filterClients()">
+        <!-- autocomplete="off": sem isto, cada browser decide se restaura os
+             valores dos filtros ao recarregar, e QUANDO o faz. Como o
+             loadClients() é assíncrono, um browser que restaure depois do fetch
+             deixava o select a dizer "Lead" com a tabela a mostrar tudo — e
+             reseleccionar "Lead" não disparava o onchange. Assim os filtros
+             começam sempre vazios, igual em todos os browsers. -->
+        <input type="text" id="search-input" autocomplete="off" placeholder="Pesquisar nome ou email…" oninput="filterClients()">
+        <select id="concelho-filter" autocomplete="off" onchange="filterClients()">
           <option value="">Todos os concelhos</option>
           <option value="Cascais">Cascais</option>
           <option value="Sintra">Sintra</option>
           <option value="Outro">Outro</option>
         </select>
-        <select id="status-filter" onchange="filterClients()">
+        <select id="status-filter" autocomplete="off" onchange="filterClients()">
           <option value="">Todos os estados</option>
           <option value="lead">Lead</option>
           <option value="contacted">Contactado</option>
@@ -269,13 +275,14 @@
           </div>
         </div>
         <div class="filters">
-          <input type="text" id="mov-q" placeholder="Pesquisar descrição…" oninput="loadMovimentos()">
-          <select id="mov-mes" onchange="loadMovimentos()"><option value="">Todos os meses</option></select>
-          <select id="mov-tipo" onchange="loadMovimentos()"><option value="">Todos os tipos</option></select>
-          <select id="mov-categoria" onchange="loadMovimentos()"><option value="">Todas as categorias</option><option value="__none__">— Sem categoria —</option></select>
-          <select id="mov-estado" onchange="loadMovimentos()"><option value="">Todos os estados</option></select>
-          <select id="mov-entidade-emissora" onchange="loadMovimentos()"><option value="">Todas as entidades</option><option value="__none__">— Sem entidade emissora —</option></select>
-          <select id="mov-cliente" onchange="loadMovimentos()"><option value="">Todos os clientes</option></select>
+          <!-- autocomplete="off" pela mesma razão dos filtros de clientes. -->
+          <input type="text" id="mov-q" autocomplete="off" placeholder="Pesquisar descrição…" oninput="loadMovimentos()">
+          <select id="mov-mes" autocomplete="off" onchange="loadMovimentos()"><option value="">Todos os meses</option></select>
+          <select id="mov-tipo" autocomplete="off" onchange="loadMovimentos()"><option value="">Todos os tipos</option></select>
+          <select id="mov-categoria" autocomplete="off" onchange="loadMovimentos()"><option value="">Todas as categorias</option><option value="__none__">— Sem categoria —</option></select>
+          <select id="mov-estado" autocomplete="off" onchange="loadMovimentos()"><option value="">Todos os estados</option></select>
+          <select id="mov-entidade-emissora" autocomplete="off" onchange="loadMovimentos()"><option value="">Todas as entidades</option><option value="__none__">— Sem entidade emissora —</option></select>
+          <select id="mov-cliente" autocomplete="off" onchange="loadMovimentos()"><option value="">Todos os clientes</option></select>
         </div>
         <div class="table-wrap">
           <table id="mov-table">
