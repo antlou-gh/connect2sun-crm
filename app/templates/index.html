@@ -603,7 +603,12 @@ async function loadDashboard() {
 // ── Clients list ─────────────────────────────────────────────────────────────
 async function loadClients() {
   allClients = await apiFetch(`${API}/clients/`);
-  renderClientsTable(allClients);
+  // filterClients() em vez de renderClientsTable(allClients): ao fazer refresh,
+  // o browser restaura os valores dos filtros, mas desenhar a lista toda
+  // deixava-os a mentir — o select dizia "Lead" e a tabela mostrava tudo. Pior,
+  // reseleccionar "Lead" não disparava o onchange (o valor não mudava), pelo que
+  // era preciso passar por outro estado para o filtro voltar a pegar.
+  filterClients();
 }
 
 function renderClientsTable(clients) {
