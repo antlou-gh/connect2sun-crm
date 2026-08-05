@@ -122,8 +122,10 @@ Especificação:
 
 - **Colunas com fórmula (`IVA` e `Total`):** com openpyxl, ler células de fórmula
   devolve o texto da fórmula, não o valor. Para `iva`, **não guardes a string da
-  fórmula** — calcula `iva = round(abs(valor) - valor_siva, 2)` (equivalente à
-  fórmula da folha). `Total` é ignorado de qualquer forma.
+  fórmula** — calcula `iva = round(abs(valor) - abs(valor_siva), 2)` (o `abs()`
+  nos **dois** lados: há movimentos em que ambos vêm negativos — ex.: ordem 141,
+  "Pag. acessórios" — e sem o segundo `abs()` a subtração vira soma, gravando o
+  dobro do valor). `Total` é ignorado de qualquer forma.
 - `data` = construir `date(2026, mes_num, dia)`, convertendo o **nome do mês** para
   número via `MESES`. Se o dia/mês faltar ou for inválido, regista aviso e salta a linha.
 - `categoria` = **sempre NULL** na importação (categorização é feita depois na app).
@@ -151,6 +153,12 @@ autenticação/MFA que as outras rotas.
   para `estado`, `tipo_movimento`, `categoria` (das constantes) e seleção de
   cliente (opcional). Campo de data com máscara `dd/mm/aaaa` (segue o que já
   existe no projeto). Ao criar, `numero_ordem` = `max(numero_ordem) + 1`.
+  **`entidade_emissora` é obrigatória** (validação na aplicação, não na coluna
+  da BD) — tal como `descricao`, `valor` e `data`: sem ela o movimento não é
+  rastreável até ao fornecedor/cliente que o emitiu, e essa informação nunca
+  mais é recuperável depois de perdida. `num_factura` fica opcional (nem todo
+  o movimento tem documento associado, ex.: transferência bancária), mas
+  incentivada.
 
 ## 5. Ecrãs de revisão
 
