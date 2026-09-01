@@ -50,7 +50,12 @@ class Config:
     # Chave estática para o servidor MCP autenticar via header X-API-Key.
     # Gera com: python -c "import secrets; print(secrets.token_urlsafe(32))"
     # Sem default: se não estiver definida, a /api/v1 fica fechada (fail-closed).
+    # MCP_API_KEY dá acesso total (ler + criar + editar) — role "admin".
     MCP_API_KEY = os.environ.get("MCP_API_KEY")
+    # MCP_API_KEY_READONLY é opcional: só leitura (GET), nunca cria nem edita
+    # — role "contabilista". Sem ela definida, essa chave nunca existe (não
+    # há um valor por defeito que alguém possa adivinhar).
+    MCP_API_KEY_READONLY = os.environ.get("MCP_API_KEY_READONLY")
     # Cookie de sessão: HttpOnly sempre; Secure só em produção (Render usa HTTPS).
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"

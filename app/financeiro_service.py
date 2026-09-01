@@ -517,6 +517,96 @@ def criar_transacao_from_dict(body):
     return t, []
 
 
+# ── Actualização parcial de movimentos (PATCH /api/v1/transacoes/<id>) ───────
+# Usada só pela api_v1 — o PUT humano (blueprints/financeiro.py) continua a
+# chamar _aplicar_campos diretamente, sem estas regras extra (o formulário da
+# app já não deixa a entidade emissora vazia nem mexe no número de ordem, por
+# desenho da UI; aqui é a API de máquina que precisa da rede de segurança).
+
+# id é a chave primária (nunca vem para editar); numero_ordem é um artefacto
+# da importação em sequência, não uma chave de recurso estável.
+CAMPOS_IMUTAVEIS_PATCH = ("id", "numero_ordem")
+
+CAMPOS_EDITAVEIS_PATCH = (
+    "descricao",
+    "valor",
+    "entidade_emissora",
+    "num_factura",
+    "valor_siva",
+    "iva",
+    "iva_pct",
+    "data",
+    "estado",
+    "tipo_movimento",
+    "categoria",
+    "cliente_id",
+)
+
+
+def _como_float(valor):
+    """valor -> float, ou None se vazio/inválido. Não levanta excepção."""
+    if valor in (None, ""):
+        return None
+    try:
+        return float(valor)
+    except (TypeError, ValueError):
+        return None
+
+
+def atualizar_transacao_from_dict(t, body):
+    """Aplica um PATCH parcial a uma Transacao já existente (sem commit).
+
+    Devolve (t, erros, avisos). Erros não vazios ⇒ nada em `t` deve ser
+    persistido (quem chama só faz commit() se erros estiver vazio).
+
+    Além da validação campo a campo de `_aplicar_campos` (reaproveitada tal
+    e qual, é a mesma regra do PUT humano), acrescenta o que só faz sentido
+    num PATCH parcial:
+    - `numero_ordem`/`id` no corpo ⇒ erro (imutáveis).
+    - corpo vazio ou sem nenhum campo editável reconhecido ⇒ erro.
+    - `entidade_emissora` presente no corpo tem de vir não-vazia (ausente do
+      corpo continua a significar "não mexer", diferente de "limpar").
+    - IVA: se `valor` e/ou `valor_siva` mudam sem `iva` explícito no mesmo
+      pedido, recalcula-se `iva = abs(valor) - abs(valor_siva)` com o estado
+      pós-patch (mesma fórmula do importador, corrigida no commit dc058bc).
+      Se `iva` vier explícito, prevalece sempre — cobre os royalties com
+      retenção na fonte, que têm IVA negativo por regra de negócio. Um IVA
+      recalculado negativo fora desse caso não bloqueia, só avisa (mesmo
+      comportamento do importador).
+    """
+    erros = []
+
+    imutaveis = [c for c in CAMPOS_IMUTAVEIS_PATCH if c in body]
+    if imutaveis:
+        erros.append("Campo(s) imutável(eis) no pedido: " + ", ".join(imutaveis) + ".")
+
+    if "entidade_emissora" in body and not (body.get("entidade_emissora") or "").strip():
+        erros.append("Entidade emissora não pode ficar vazia.")
+
+    if not any(campo in body for campo in CAMPOS_EDITAVEIS_PATCH):
+        erros.append("Nenhum campo editável reconhecido no pedido.")
+
+    if erros:
+        return t, erros, []
+
+    avisos = []
+    if ("valor" in body or "valor_siva" in body) and "iva" not in body:
+        novo_valor = _como_float(body["valor"]) if "valor" in body else t.valor
+        novo_valor_siva = _como_float(body["valor_siva"]) if "valor_siva" in body else t.valor_siva
+        if novo_valor is not None and novo_valor_siva is not None:
+            iva_calculado = round(abs(novo_valor) - abs(novo_valor_siva), 2)
+            body = {**body, "iva": iva_calculado}
+            if iva_calculado < 0:
+                avisos.append(
+                    f"S/ IVA ({novo_valor_siva}) maior que o valor total ({novo_valor}); "
+                    f"IVA calculado ficou negativo ({iva_calculado}). "
+                    "Há retenção na fonte? Confirmar à mão."
+                )
+
+    erros_campos = _aplicar_campos(t, body)
+    return t, erros_campos, avisos
+
+
 # ── Relatório de lacunas: numero_factura / entidade_emissora em falta ────────
 # Muitos movimentos antigos têm a informação no texto livre da Descrição
 # (convenção "Pag./Rec. Inst <CÓDIGO> <Cliente> <detalhe>") mas não nos campos

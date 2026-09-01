@@ -22,6 +22,7 @@ class ConfigBase:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SECRET_KEY = "test"
     MCP_API_KEY = "chave-de-teste"
+    MCP_API_KEY_READONLY = "chave-de-teste-readonly"
     APP_PASSWORD = "pw-admin"
     CONTAB_PASSWORD = None
     TOTP_SECRET = None
@@ -247,3 +248,68 @@ def test_sessao_de_browser_nao_abre_a_api_v1(cliente_com_mfa):
     """A /api/v1 é governada só pela chave — estar autenticado não basta."""
     _entrar_como(cliente_com_mfa, "admin")
     assert cliente_com_mfa.get("/api/v1/clientes").status_code == 401
+
+
+# ── Roles na api/v1: MCP_API_KEY (admin) vs MCP_API_KEY_READONLY (contabilista) ─
+# A contabilista não pode editar transações por nenhum caminho — nem o
+# formulário humano (já coberto acima), nem a API de máquina. Estes testes são
+# a rede que garante isso também do lado do MCP.
+
+
+def _criar_transacao_admin(cliente):
+    """Cria um movimento com a chave admin; devolve o id. Ajuda os testes de
+    PATCH a não dependerem de haver dados pré-existentes."""
+    r = cliente.post(
+        "/api/v1/transacoes",
+        headers={"X-API-Key": "chave-de-teste"},
+        json={
+            "descricao": "Movimento de teste",
+            "valor": 100.0,
+            "data": "2026-01-01",
+            "entidade_emissora": "Fornecedor Teste",
+        },
+    )
+    assert r.status_code == 201, r.get_data(as_text=True)
+    return r.get_json()["id"]
+
+
+def test_api_v1_chave_readonly_le_mas_nao_cria(cliente_sem_mfa):
+    r_get = cliente_sem_mfa.get(
+        "/api/v1/clientes", headers={"X-API-Key": "chave-de-teste-readonly"}
+    )
+    assert r_get.status_code == 200
+
+    r_post = cliente_sem_mfa.post(
+        "/api/v1/transacoes",
+        headers={"X-API-Key": "chave-de-teste-readonly"},
+        json={"descricao": "x", "valor": 1.0, "data": "2026-01-01", "entidade_emissora": "x"},
+    )
+    assert r_post.status_code == 403
+
+
+def test_api_v1_patch_com_chave_admin_funciona(cliente_sem_mfa):
+    id_transacao = _criar_transacao_admin(cliente_sem_mfa)
+    r = cliente_sem_mfa.patch(
+        f"/api/v1/transacoes/{id_transacao}",
+        headers={"X-API-Key": "chave-de-teste"},
+        json={"valor": 200.0},
+    )
+    assert r.status_code == 200
+    assert r.get_json()["valor"] == 200.0
+
+
+def test_api_v1_patch_com_chave_readonly_da_403(cliente_sem_mfa):
+    id_transacao = _criar_transacao_admin(cliente_sem_mfa)
+    r = cliente_sem_mfa.patch(
+        f"/api/v1/transacoes/{id_transacao}",
+        headers={"X-API-Key": "chave-de-teste-readonly"},
+        json={"valor": 200.0},
+    )
+    assert r.status_code == 403
+
+
+def test_api_v1_chave_readonly_por_configurar_nunca_bate_certo(cliente_com_mfa):
+    """ConfigComMfa não define MCP_API_KEY_READONLY (fica None) — sem chave
+    configurada, nenhum X-API-Key deve poder passar-se por essa role."""
+    r = cliente_com_mfa.get("/api/v1/clientes", headers={"X-API-Key": ""})
+    assert r.status_code == 401

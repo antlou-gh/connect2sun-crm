@@ -5,6 +5,7 @@ import io
 from flask import (
     Blueprint,
     current_app,
+    g,
     jsonify,
     redirect,
     render_template,
@@ -185,11 +186,15 @@ def require_login():
     # browser. Verificação exaustiva e prioritária — se o path é /api/v1/ mas a
     # chave falha, devolve 401 aqui e NÃO cai na lógica de sessão humana.
     if request.path.startswith("/api/v1/"):
-        from ..api_auth import verificar_api_key
+        from ..api_auth import role_da_chave
 
-        if verificar_api_key(request):
-            return None
-        return jsonify({"error": "API key inválida ou em falta"}), 401
+        role = role_da_chave(request)
+        if role is None:
+            return jsonify({"error": "API key inválida ou em falta"}), 401
+        # Rotas de escrita da api_v1 leem g.mcp_role para recusar a role
+        # "contabilista" (ver _exigir_admin em blueprints/api_v1.py).
+        g.mcp_role = role
+        return None
 
     if not session.get("authed"):
         public = (
