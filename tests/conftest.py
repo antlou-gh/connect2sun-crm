@@ -14,6 +14,7 @@ class TestConfig:
     APP_PASSWORD = "test"
     TOTP_SECRET = None
     MCP_API_KEY = "test-key"
+    MCP_API_KEY_READONLY = "test-key-readonly"
 
 
 @pytest.fixture
@@ -32,6 +33,11 @@ def app():
 @pytest.fixture
 def db(app):
     return _db
+
+
+@pytest.fixture
+def client(app):
+    return app.test_client()
 
 
 def make_cliente(db, **kwargs):

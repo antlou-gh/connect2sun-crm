@@ -1,31 +1,55 @@
-"""API de máquina (/api/v1) — para o futuro servidor MCP.
+"""API de máquina (/api/v1) — para o servidor MCP.
 
 Autenticada SÓ por chave estática (X-API-Key), nunca por sessão de browser
-(ver require_login em blueprints/auth.py). Menor privilégio possível:
+(ver require_login em blueprints/auth.py). Duas chaves possíveis, cada uma
+com uma role (ver app/api_auth.py):
 
-- POST /api/v1/transacoes  — criar movimento (única operação de escrita).
-- GET  /api/v1/clientes    — listar/filtrar clientes (read-only).
-- GET  /api/v1/transacoes  — consultar movimentos (read-only).
-- GET  /api/v1/saldo       — totais agregados por NIF (read-only).
+- MCP_API_KEY          → role "admin"        — ler, criar, editar.
+- MCP_API_KEY_READONLY → role "contabilista" — só ler.
 
-NÃO existem PUT/DELETE: a máquina nunca altera nem apaga. Se a chave vazar, o
-estrago possível fica limitado a "criar movimentos a mais" e "ler dados".
+Rotas:
+- POST  /api/v1/transacoes      — criar movimento (role admin).
+- PATCH /api/v1/transacoes/<id> — editar campos pontuais (role admin).
+- GET   /api/v1/clientes        — listar/filtrar clientes (qualquer role).
+- GET   /api/v1/transacoes      — consultar movimentos (qualquer role).
+- GET   /api/v1/saldo           — totais agregados por NIF (qualquer role).
+
+NÃO existe DELETE: não há caso de uso identificado para apagar movimentos via
+máquina, e é a única operação que não se consegue desfazer com outro PATCH.
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, g, jsonify, request
 from sqlalchemy import extract
 
 from .. import db
-from ..financeiro_service import criar_transacao_from_dict, saldo_por_nif
+from ..financeiro_service import (
+    atualizar_transacao_from_dict,
+    criar_transacao_from_dict,
+    saldo_por_nif,
+)
 from ..models import Client, Transacao
 
 bp = Blueprint("api_v1", __name__)
+
+
+def _exigir_admin():
+    """403 se a chave usada for só-leitura (role "contabilista"). None se ok.
+
+    role_da_chave() já correu no require_login (blueprints/auth.py) e deixou
+    o resultado em g.mcp_role antes de qualquer rota da api_v1 ser chamada.
+    """
+    if g.get("mcp_role") != "admin":
+        return jsonify({"error": "Só disponível para a chave de escrita (admin)."}), 403
+    return None
 
 
 @bp.post("/transacoes")
 def criar_transacao():
     """Cria um movimento. Mesma validação que o endpoint humano (função
     partilhada criar_transacao_from_dict). Erros → 400; sucesso → 201."""
+    erro = _exigir_admin()
+    if erro:
+        return erro
     body = request.get_json(silent=True) or {}
     t, erros = criar_transacao_from_dict(body)
     if erros:
@@ -33,6 +57,32 @@ def criar_transacao():
     db.session.add(t)
     db.session.commit()
     return jsonify(t.to_dict()), 201
+
+
+@bp.patch("/transacoes/<int:transacao_id>")
+def atualizar_transacao(transacao_id):
+    """Edita campos pontuais de um movimento existente (PATCH parcial).
+
+    Só os campos presentes no corpo são alterados; ver
+    financeiro_service.atualizar_transacao_from_dict para as regras
+    (campos imutáveis, entidade_emissora, recálculo de IVA).
+    """
+    erro = _exigir_admin()
+    if erro:
+        return erro
+    t = db.session.get(Transacao, transacao_id)
+    if t is None:
+        return jsonify({"error": "Movimento não encontrado."}), 404
+    body = request.get_json(silent=True) or {}
+    t, erros, avisos = atualizar_transacao_from_dict(t, body)
+    if erros:
+        db.session.rollback()  # não deixar nada de _aplicar_campos meio-aplicado
+        return jsonify({"error": "; ".join(erros)}), 400
+    db.session.commit()
+    resposta = t.to_dict()
+    if avisos:
+        resposta["avisos"] = avisos
+    return jsonify(resposta), 200
 
 
 @bp.get("/clientes")
