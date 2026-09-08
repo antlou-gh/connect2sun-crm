@@ -77,9 +77,6 @@ def create_client():
     if missing:
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
-    if Client.query.filter_by(email=body["email"]).first():
-        return jsonify({"error": "Email already registered"}), 409
-
     raw_number = body.get("client_number")
     if raw_number in (None, ""):
         client_number = next_client_number()
@@ -114,13 +111,6 @@ def create_client():
 def update_client(client_id):
     client = db.get_or_404(Client, client_id)
     body = request.get_json(silent=True) or {}
-
-    if (
-        "email" in body
-        and body["email"] != client.email
-        and Client.query.filter_by(email=body["email"]).first()
-    ):
-        return jsonify({"error": "Email already registered"}), 409
 
     if "client_number" in body and body["client_number"] not in (None, ""):
         try:

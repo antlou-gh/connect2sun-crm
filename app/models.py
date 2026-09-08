@@ -38,7 +38,7 @@ class Client(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     client_number = db.Column(db.Integer, unique=True, index=True)
     name = db.Column(db.String(120), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    email = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(30))
     address = db.Column(db.String(255))
     city = db.Column(db.String(80))  # concelho: Cascais, Sintra ou Outro
